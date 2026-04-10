@@ -1,0 +1,201 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  avatarUrl     String?
+  age           Int?
+  weight        Float?    // kg
+  height        Float?    // cm
+  activityLevel ActivityLevel @default(MODERATE)
+  goal          HealthGoal    @default(MAINTAIN)
+  dailyCalorieTarget Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  meals         Meal[]
+  habits        Habit[]
+  habitLogs     HabitLog[]
+  mealLogs      MealLog[]
+  refreshTokens RefreshToken[]
+  recommendations Recommendation[]
+  userPreferences UserPreference?
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  isRevoked Boolean  @default(false)
+
+  @@map("refresh_tokens")
+}
+
+model Meal {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  calories     Float
+  protein      Float    // grams
+  carbs        Float    // grams
+  fat          Float    // grams
+  fiber        Float?
+  sugar        Float?
+  mealType     MealType
+  imageUrl     String?
+  tags         String[] // e.g. ["vegetarian", "high-protein"]
+  isCustom     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  logs         MealLog[]
+
+  @@index([userId, createdAt])
+  @@map("meals")
+}
+
+model MealLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealId    String
+  meal      Meal     @relation(fields: [mealId], references: [id])
+  loggedAt  DateTime @default(now())
+  quantity  Float    @default(1.0)  // multiplier
+  mood      Mood?
+  energyLevel Int?  // 1-10
+
+  @@index([userId, loggedAt])
+  @@map("meal_logs")
+}
+
+model Habit {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  category    HabitCategory
+  frequency   HabitFrequency
+  targetCount Int         @default(1)
+  unit        String?     // e.g., "glasses", "minutes"
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  logs        HabitLog[]
+
+  @@map("habits")
+}
+
+model HabitLog {
+  id        String   @id @default(cuid())
+  habitId   String
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loggedAt  DateTime @default(now())
+  count     Int      @default(1)
+  note      String?
+
+  @@index([userId, loggedAt])
+  @@map("habit_logs")
+}
+
+model Recommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        RecommendationType
+  title       String
+  description String
+  data        Json     // flexible AI output
+  score       Float    // confidence 0-1
+  isRead      Boolean  @default(false)
+  isSaved     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("recommendations")
+}
+
+model UserPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dietaryRestrictions String[] // ["vegan", "gluten-free"]
+  allergies       String[]
+  cuisinePrefs    String[]
+  dislikedFoods   String[]
+  updatedAt       DateTime @updatedAt
+
+  @@map("user_preferences")
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+  VERY_ACTIVE
+}
+
+enum HealthGoal {
+  LOSE_WEIGHT
+  GAIN_MUSCLE
+  MAINTAIN
+  IMPROVE_ENERGY
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+  PRE_WORKOUT
+  POST_WORKOUT
+}
+
+enum Mood {
+  GREAT
+  GOOD
+  NEUTRAL
+  BAD
+  TERRIBLE
+}
+
+enum HabitCategory {
+  HYDRATION
+  SLEEP
+  EXERCISE
+  NUTRITION
+  MINDFULNESS
+}
+
+enum HabitFrequency {
+  DAILY
+  WEEKLY
+}
+
+enum RecommendationType {
+  MEAL
+  HABIT
+  INSIGHT
+  ALERT
+}
