@@ -80,3 +80,5 @@ pids
 # Docker & Containers
 # ==========================================
 .dockerignore
+!backend/.dockerignore
+!frontend/.dockerignore

@@ -10,7 +10,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  REDIS_URL: z.string().url("REDIS_URL must be a valid URL"),
+  REDIS_URL: z.string().min(1, "REDIS_URL is required"),
   JWT_ACCESS_SECRET: z
     .string()
     .regex(hex64Regex, "JWT_ACCESS_SECRET must be a 64-character hex string"),

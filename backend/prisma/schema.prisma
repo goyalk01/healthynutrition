@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -16,8 +16,8 @@ model User {
   age           Int?
   weight        Float?    // kg
   height        Float?    // cm
-  activityLevel ActivityLevel @default(MODERATE)
-  goal          HealthGoal    @default(MAINTAIN)
+  activityLevel String    @default("MODERATE")
+  goal          String    @default("MAINTAIN")
   dailyCalorieTarget Int?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -58,9 +58,9 @@ model Meal {
   fat          Float    // grams
   fiber        Float?
   sugar        Float?
-  mealType     MealType
+  mealType     String   // BREAKFAST | LUNCH | DINNER | SNACK | PRE_WORKOUT | POST_WORKOUT
   imageUrl     String?
-  tags         String[] // e.g. ["vegetarian", "high-protein"]
+  tags         String   @default("[]") // JSON array stored as text
   isCustom     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -79,25 +79,25 @@ model MealLog {
   meal      Meal     @relation(fields: [mealId], references: [id])
   loggedAt  DateTime @default(now())
   quantity  Float    @default(1.0)  // multiplier
-  mood      Mood?
-  energyLevel Int?  // 1-10
+  mood      String?  // GREAT | GOOD | NEUTRAL | BAD | TERRIBLE
+  energyLevel Int?   // 1-10
 
   @@index([userId, loggedAt])
   @@map("meal_logs")
 }
 
 model Habit {
-  id          String      @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  category    HabitCategory
-  frequency   HabitFrequency
-  targetCount Int         @default(1)
-  unit        String?     // e.g., "glasses", "minutes"
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
+  category    String   // HYDRATION | SLEEP | EXERCISE | NUTRITION | MINDFULNESS
+  frequency   String   // DAILY | WEEKLY
+  targetCount Int      @default(1)
+  unit        String?  // e.g., "glasses", "minutes"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
 
   logs        HabitLog[]
 
@@ -122,10 +122,10 @@ model Recommendation {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        RecommendationType
+  type        String   // MEAL | HABIT | INSIGHT | ALERT
   title       String
   description String
-  data        Json     // flexible AI output
+  data        String   @default("{}") // JSON stored as text
   score       Float    // confidence 0-1
   isRead      Boolean  @default(false)
   isSaved     Boolean  @default(false)
@@ -136,66 +136,14 @@ model Recommendation {
 }
 
 model UserPreference {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dietaryRestrictions String[] // ["vegan", "gluten-free"]
-  allergies       String[]
-  cuisinePrefs    String[]
-  dislikedFoods   String[]
-  updatedAt       DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dietaryRestrictions String   @default("[]") // JSON array as text
+  allergies           String   @default("[]") // JSON array as text
+  cuisinePrefs        String   @default("[]") // JSON array as text
+  dislikedFoods       String   @default("[]") // JSON array as text
+  updatedAt           DateTime @updatedAt
 
   @@map("user_preferences")
-}
-
-enum ActivityLevel {
-  SEDENTARY
-  LIGHT
-  MODERATE
-  ACTIVE
-  VERY_ACTIVE
-}
-
-enum HealthGoal {
-  LOSE_WEIGHT
-  GAIN_MUSCLE
-  MAINTAIN
-  IMPROVE_ENERGY
-}
-
-enum MealType {
-  BREAKFAST
-  LUNCH
-  DINNER
-  SNACK
-  PRE_WORKOUT
-  POST_WORKOUT
-}
-
-enum Mood {
-  GREAT
-  GOOD
-  NEUTRAL
-  BAD
-  TERRIBLE
-}
-
-enum HabitCategory {
-  HYDRATION
-  SLEEP
-  EXERCISE
-  NUTRITION
-  MINDFULNESS
-}
-
-enum HabitFrequency {
-  DAILY
-  WEEKLY
-}
-
-enum RecommendationType {
-  MEAL
-  HABIT
-  INSIGHT
-  ALERT
 }

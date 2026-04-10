@@ -1,3 +1,8 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { CheckCircle2 } from "lucide-react";
+
 export function HabitTracker({
   name,
   progress,
@@ -5,38 +10,35 @@ export function HabitTracker({
   name: string;
   progress: number;
 }) {
-  const widthClass =
-    progress >= 100
-      ? "w-full"
-      : progress >= 90
-        ? "w-[90%]"
-        : progress >= 80
-          ? "w-[80%]"
-          : progress >= 70
-            ? "w-[70%]"
-            : progress >= 60
-              ? "w-[60%]"
-              : progress >= 50
-                ? "w-1/2"
-                : progress >= 40
-                  ? "w-[40%]"
-                  : progress >= 30
-                    ? "w-[30%]"
-                    : progress >= 20
-                      ? "w-[20%]"
-                      : progress >= 10
-                        ? "w-[10%]"
-                        : "w-0";
+  const safeProgress = Math.min(100, Math.max(0, progress));
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ once: true }}
+      className="group relative overflow-hidden rounded-xl border border-border bg-card/50 p-4 transition-all hover:bg-card"
+    >
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{name}</p>
-        <p className="text-xs text-muted-foreground">{progress}%</p>
+        <div className="flex items-center space-x-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+            <CheckCircle2 size={16} />
+          </div>
+          <p className="text-sm font-semibold tracking-tight">{name}</p>
+        </div>
+        <div className="flex items-baseline space-x-1">
+          <span className="text-lg font-bold">{safeProgress}</span>
+          <span className="text-xs font-medium text-muted-foreground">%</span>
+        </div>
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-        <div className={`h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 ${widthClass}`} />
+      <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-muted/60 shadow-inner">
+        <motion.div 
+          initial={{ width: 0 }}
+          whileInView={{ width: `${safeProgress}%` }}
+          transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+          className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-500 shadow-[0_0_10px_rgba(52,211,153,0.5)]" 
+        />
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -6,20 +6,25 @@ const toHttpError = (statusCode: number, message: string): Error & { statusCode:
 
 export class RecommendationsService {
   static async list(userId: string) {
-    return prisma.recommendation.findMany({
+    const items = await prisma.recommendation.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
     });
+
+    return items.map((item: any) => ({
+      ...item,
+      data: typeof item.data === "string" ? JSON.parse(item.data) : item.data,
+    }));
   }
 
   static async generate(userId: string, data: Record<string, unknown>) {
     return prisma.recommendation.create({
       data: {
         userId,
-        type: data.type as "MEAL" | "HABIT" | "INSIGHT" | "ALERT",
+        type: data.type as string,
         title: data.title as string,
         description: data.description as string,
-        data: data.data as object,
+        data: JSON.stringify(data.data ?? {}),
         score: data.score as number,
       },
     });

@@ -1,4 +1,3 @@
-import { MealType } from "@prisma/client";
 import { z } from "zod";
 
 export const mealCreateSchema = z.object({
@@ -10,7 +9,7 @@ export const mealCreateSchema = z.object({
   fat: z.number().nonnegative(),
   fiber: z.number().nonnegative().optional(),
   sugar: z.number().nonnegative().optional(),
-  mealType: z.nativeEnum(MealType),
+  mealType: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK", "PRE_WORKOUT", "POST_WORKOUT"]),
   imageUrl: z.string().url().optional(),
   tags: z.array(z.string()).default([]),
   isCustom: z.boolean().optional(),
@@ -21,6 +20,6 @@ export const mealUpdateSchema = mealCreateSchema.partial();
 export const mealListQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  mealType: z.nativeEnum(MealType).optional(),
+  mealType: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK", "PRE_WORKOUT", "POST_WORKOUT"]).optional(),
   tag: z.string().optional(),
 });

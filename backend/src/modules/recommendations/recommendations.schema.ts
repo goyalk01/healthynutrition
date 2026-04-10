@@ -1,8 +1,7 @@
-import { RecommendationType } from "@prisma/client";
 import { z } from "zod";
 
 export const recommendationCreateSchema = z.object({
-  type: z.nativeEnum(RecommendationType),
+  type: z.enum(["MEAL", "HABIT", "INSIGHT", "ALERT"]),
   title: z.string().min(3),
   description: z.string().min(3),
   data: z.record(z.any()).default({}),

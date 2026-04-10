@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist
+*.tsbuildinfo
+.env
+.env.*
+coverage
+.git
+.vscode
+.idea
+*.log

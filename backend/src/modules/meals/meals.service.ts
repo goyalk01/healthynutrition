@@ -10,21 +10,15 @@ export class MealsService {
     query: { page: number; limit: number; mealType?: string; tag?: string },
   ) {
     const skip = (query.page - 1) * query.limit;
-    const where = {
-      userId,
-      ...(query.mealType
-        ? {
-            mealType: query.mealType as
-              | "BREAKFAST"
-              | "LUNCH"
-              | "DINNER"
-              | "SNACK"
-              | "PRE_WORKOUT"
-              | "POST_WORKOUT",
-          }
-        : {}),
-      ...(query.tag ? { tags: { has: query.tag } } : {}),
-    };
+    const where: Record<string, unknown> = { userId };
+
+    if (query.mealType) {
+      where.mealType = query.mealType;
+    }
+    if (query.tag) {
+      // SQLite: tags are stored as JSON text, use contains for filtering
+      where.tags = { contains: query.tag };
+    }
 
     const [items, total] = await prisma.$transaction([
       prisma.meal.findMany({ where, skip, take: query.limit, orderBy: { createdAt: "desc" } }),
@@ -32,7 +26,10 @@ export class MealsService {
     ]);
 
     return {
-      items,
+      items: items.map((item: any) => ({
+        ...item,
+        tags: typeof item.tags === "string" ? JSON.parse(item.tags) : item.tags,
+      })),
       pagination: {
         page: query.page,
         limit: query.limit,
@@ -54,15 +51,9 @@ export class MealsService {
         fat: data.fat as number,
         fiber: (data.fiber as number | undefined) ?? null,
         sugar: (data.sugar as number | undefined) ?? null,
-        mealType: data.mealType as
-          | "BREAKFAST"
-          | "LUNCH"
-          | "DINNER"
-          | "SNACK"
-          | "PRE_WORKOUT"
-          | "POST_WORKOUT",
+        mealType: data.mealType as string,
         imageUrl: (data.imageUrl as string | undefined) ?? null,
-        tags: (data.tags as string[] | undefined) ?? [],
+        tags: JSON.stringify((data.tags as string[]) ?? []),
         isCustom: (data.isCustom as boolean | undefined) ?? true,
       },
     });
@@ -74,34 +65,32 @@ export class MealsService {
       throw toHttpError(404, "Meal not found");
     }
 
-    return meal;
+    return {
+      ...meal,
+      tags: typeof meal.tags === "string" ? JSON.parse(meal.tags) : meal.tags,
+    };
   }
 
   static async update(userId: string, mealId: string, data: Record<string, unknown>) {
     await this.getById(userId, mealId);
+
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.calories !== undefined) updateData.calories = data.calories;
+    if (data.protein !== undefined) updateData.protein = data.protein;
+    if (data.carbs !== undefined) updateData.carbs = data.carbs;
+    if (data.fat !== undefined) updateData.fat = data.fat;
+    if (data.fiber !== undefined) updateData.fiber = data.fiber;
+    if (data.sugar !== undefined) updateData.sugar = data.sugar;
+    if (data.mealType !== undefined) updateData.mealType = data.mealType;
+    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+    if (data.tags !== undefined) updateData.tags = JSON.stringify(data.tags);
+    if (data.isCustom !== undefined) updateData.isCustom = data.isCustom;
+
     return prisma.meal.update({
       where: { id: mealId },
-      data: {
-        name: data.name as string | undefined,
-        description: data.description as string | undefined,
-        calories: data.calories as number | undefined,
-        protein: data.protein as number | undefined,
-        carbs: data.carbs as number | undefined,
-        fat: data.fat as number | undefined,
-        fiber: data.fiber as number | undefined,
-        sugar: data.sugar as number | undefined,
-        mealType: data.mealType as
-          | "BREAKFAST"
-          | "LUNCH"
-          | "DINNER"
-          | "SNACK"
-          | "PRE_WORKOUT"
-          | "POST_WORKOUT"
-          | undefined,
-        imageUrl: data.imageUrl as string | undefined,
-        tags: data.tags as string[] | undefined,
-        isCustom: data.isCustom as boolean | undefined,
-      },
+      data: updateData,
     });
   }
 
@@ -111,13 +100,22 @@ export class MealsService {
   }
 
   static async search(userId: string, q: string) {
-    return prisma.meal.findMany({
+    // SQLite: use contains for case-insensitive search (SQLite is case-insensitive by default for ASCII)
+    const results = await prisma.meal.findMany({
       where: {
         userId,
-        OR: [{ name: { contains: q, mode: "insensitive" } }, { tags: { has: q } }],
+        OR: [
+          { name: { contains: q } },
+          { tags: { contains: q } },
+        ],
       },
       take: 25,
       orderBy: { createdAt: "desc" },
     });
+
+    return results.map((item: any) => ({
+      ...item,
+      tags: typeof item.tags === "string" ? JSON.parse(item.tags) : item.tags,
+    }));
   }
 }

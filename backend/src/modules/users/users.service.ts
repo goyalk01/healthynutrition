@@ -16,6 +16,19 @@ export class UsersService {
     }
 
     const { passwordHash: _passwordHash, ...safeUser } = user;
+
+    // Parse JSON string arrays in preferences
+    if (safeUser.userPreferences) {
+      const prefs = safeUser.userPreferences;
+      safeUser.userPreferences = {
+        ...prefs,
+        dietaryRestrictions: typeof prefs.dietaryRestrictions === "string" ? JSON.parse(prefs.dietaryRestrictions) : prefs.dietaryRestrictions,
+        allergies: typeof prefs.allergies === "string" ? JSON.parse(prefs.allergies) : prefs.allergies,
+        cuisinePrefs: typeof prefs.cuisinePrefs === "string" ? JSON.parse(prefs.cuisinePrefs) : prefs.cuisinePrefs,
+        dislikedFoods: typeof prefs.dislikedFoods === "string" ? JSON.parse(prefs.dislikedFoods) : prefs.dislikedFoods,
+      };
+    }
+
     return safeUser;
   }
 
@@ -27,13 +40,8 @@ export class UsersService {
       age?: number | null;
       weight?: number | null;
       height?: number | null;
-      activityLevel?:
-        | "SEDENTARY"
-        | "LIGHT"
-        | "MODERATE"
-        | "ACTIVE"
-        | "VERY_ACTIVE";
-      goal?: "LOSE_WEIGHT" | "GAIN_MUSCLE" | "MAINTAIN" | "IMPROVE_ENERGY";
+      activityLevel?: string;
+      goal?: string;
       dailyCalorieTarget?: number | null;
     },
   ) {
@@ -55,10 +63,18 @@ export class UsersService {
       dislikedFoods: string[];
     },
   ) {
+    // Serialize arrays to JSON strings for SQLite
+    const serialized = {
+      dietaryRestrictions: JSON.stringify(data.dietaryRestrictions),
+      allergies: JSON.stringify(data.allergies),
+      cuisinePrefs: JSON.stringify(data.cuisinePrefs),
+      dislikedFoods: JSON.stringify(data.dislikedFoods),
+    };
+
     return prisma.userPreference.upsert({
       where: { userId },
-      create: { userId, ...data },
-      update: data,
+      create: { userId, ...serialized },
+      update: serialized,
     });
   }
 
