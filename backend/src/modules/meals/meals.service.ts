@@ -1,12 +1,10 @@
 import crypto from "crypto";
 import { prisma } from "../../config/database";
-import { env } from "../../config/env";
+import { isPrototypeMode } from "../../config/runtime";
 
 const toHttpError = (statusCode: number, message: string): Error & { statusCode: number } => {
   return Object.assign(new Error(message), { statusCode });
 };
-
-const isPrototypeMode = env.NODE_ENV !== "production";
 
 const getPrototypeMeals = (userId: string) => {
   const now = new Date().toISOString();
@@ -37,7 +35,7 @@ export class MealsService {
     userId: string,
     query: { page: number; limit: number; mealType?: string; tag?: string },
   ) {
-    if (isPrototypeMode) {
+    if (isPrototypeMode || !prisma) {
       const items = getPrototypeMeals(userId);
       return {
         items,
@@ -105,7 +103,7 @@ export class MealsService {
       };
     }
 
-    return prisma.meal.create({
+    return prisma?.meal.create({
       data: {
         userId,
         name: data.name as string,
@@ -139,7 +137,7 @@ export class MealsService {
       return meal;
     }
 
-    const meal = await prisma.meal.findFirst({ where: { id: mealId, userId } });
+    const meal = await prisma?.meal.findFirst({ where: { id: mealId, userId } });
     if (!meal) {
       throw toHttpError(404, "Meal not found");
     }
@@ -160,7 +158,7 @@ export class MealsService {
     }
 
     await this.getById(userId, mealId);
-    return prisma.meal.update({
+    return prisma?.meal.update({
       where: { id: mealId },
       data: {
         name: data.name as string | undefined,
@@ -193,7 +191,7 @@ export class MealsService {
     }
 
     await this.getById(userId, mealId);
-    await prisma.meal.delete({ where: { id: mealId } });
+    await prisma?.meal.delete({ where: { id: mealId } });
   }
 
   static async search(userId: string, q: string) {
@@ -209,13 +207,13 @@ export class MealsService {
       );
     }
 
-    return prisma.meal.findMany({
+    return prisma?.meal.findMany({
       where: {
         userId,
         OR: [{ name: { contains: q, mode: "insensitive" } }, { tags: { has: q } }],
       },
       take: 25,
       orderBy: { createdAt: "desc" },
-    });
+    }) ?? [];
   }
 }

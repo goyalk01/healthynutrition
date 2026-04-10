@@ -4,6 +4,7 @@ import helmet from "@fastify/helmet";
 import Fastify, { FastifyInstance } from "fastify";
 import { API_PREFIX } from "./config/constants";
 import { env } from "./config/env";
+import { isDatabaseEnabled, isPrototypeMode, isRedisEnabled } from "./config/runtime";
 import { errorHandler } from "./middleware/errorHandler";
 import { rateLimiterPlugin } from "./middleware/rateLimiter";
 import { requestLoggerPlugin } from "./middleware/requestLogger";
@@ -24,7 +25,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
     contentSecurityPolicy: false,
   });
 
-  await app.register(cors, {
+  await app.register(cors as any, {
     origin: env.CORS_ORIGIN,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -35,6 +36,12 @@ export const buildApp = async (): Promise<FastifyInstance> => {
   await app.register(rateLimiterPlugin);
 
   app.setErrorHandler(errorHandler);
+
+  app.log.info({
+    prototypeMode: isPrototypeMode,
+    databaseEnabled: isDatabaseEnabled,
+    redisEnabled: isRedisEnabled,
+  }, "Runtime mode initialized");
 
   app.get("/health", async () => {
     return {
@@ -60,7 +67,7 @@ if (require.main === module) {
     try {
       await app.listen({
         host: "0.0.0.0",
-        port: env.PORT,
+        port: Number(process.env.PORT ?? env.PORT),
       });
     } catch (error) {
       app.log.error(error);

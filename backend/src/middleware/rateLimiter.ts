@@ -1,11 +1,22 @@
 import { FastifyPluginAsync } from "fastify";
 import fastifyRateLimit from "@fastify/rate-limit";
 import { env } from "../config/env";
+import { isRedisEnabled } from "../config/runtime";
 
 export const rateLimiterPlugin: FastifyPluginAsync = async (fastify) => {
   if (env.NODE_ENV === "production") {
+    if (!isRedisEnabled) {
+      fastify.log.warn("REDIS_URL is missing, rate limiter disabled in production mode");
+      return;
+    }
+
     const { redis } = await import("../config/redis");
-    await fastify.register(fastifyRateLimit, {
+    if (!redis) {
+      fastify.log.warn("Redis client unavailable, rate limiter disabled");
+      return;
+    }
+
+    await fastify.register(fastifyRateLimit as any, {
       max: env.RATE_LIMIT_MAX,
       timeWindow: env.RATE_LIMIT_WINDOW,
       redis,
@@ -13,7 +24,7 @@ export const rateLimiterPlugin: FastifyPluginAsync = async (fastify) => {
     return;
   }
 
-  await fastify.register(fastifyRateLimit, {
+  await fastify.register(fastifyRateLimit as any, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW,
   });

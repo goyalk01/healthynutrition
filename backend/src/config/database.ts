@@ -1,15 +1,19 @@
 const { PrismaClient } = require("@prisma/client") as {
   PrismaClient: new (options?: Record<string, unknown>) => any;
 };
+import { isDatabaseEnabled } from "./runtime";
 
 const globalForPrisma = globalThis as unknown as { prisma?: any };
 
-export const prisma =
-  globalForPrisma.prisma ??
+const createPrismaClient = () =>
   new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
+export const prisma = isDatabaseEnabled
+  ? globalForPrisma.prisma ?? createPrismaClient()
+  : null;
+
+if (process.env.NODE_ENV !== "production" && prisma) {
   globalForPrisma.prisma = prisma;
 }
