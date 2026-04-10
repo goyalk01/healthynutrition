@@ -1,7 +1,35 @@
+import crypto from "crypto";
 import { prisma } from "../../config/database";
+import { env } from "../../config/env";
 
 const toHttpError = (statusCode: number, message: string): Error & { statusCode: number } => {
   return Object.assign(new Error(message), { statusCode });
+};
+
+const isPrototypeMode = env.NODE_ENV !== "production";
+
+const getPrototypeMeals = (userId: string) => {
+  const now = new Date().toISOString();
+  return [
+    {
+      id: `meal-prototype-${userId}`,
+      userId,
+      name: "Prototype Power Bowl",
+      description: "Demo meal for UI flow",
+      calories: 520,
+      protein: 32,
+      carbs: 48,
+      fat: 18,
+      fiber: 10,
+      sugar: 6,
+      mealType: "LUNCH",
+      imageUrl: null,
+      tags: ["high-protein", "prototype"],
+      isCustom: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
 };
 
 export class MealsService {
@@ -9,6 +37,19 @@ export class MealsService {
     userId: string,
     query: { page: number; limit: number; mealType?: string; tag?: string },
   ) {
+    if (isPrototypeMode) {
+      const items = getPrototypeMeals(userId);
+      return {
+        items,
+        pagination: {
+          page: query.page,
+          limit: query.limit,
+          total: items.length,
+          totalPages: 1,
+        },
+      };
+    }
+
     const skip = (query.page - 1) * query.limit;
     const where = {
       userId,
@@ -43,6 +84,27 @@ export class MealsService {
   }
 
   static async create(userId: string, data: Record<string, unknown>) {
+    if (isPrototypeMode) {
+      return {
+        id: crypto.randomUUID(),
+        userId,
+        name: data.name as string,
+        description: (data.description as string | undefined) ?? null,
+        calories: (data.calories as number | undefined) ?? 0,
+        protein: (data.protein as number | undefined) ?? 0,
+        carbs: (data.carbs as number | undefined) ?? 0,
+        fat: (data.fat as number | undefined) ?? 0,
+        fiber: (data.fiber as number | undefined) ?? null,
+        sugar: (data.sugar as number | undefined) ?? null,
+        mealType: (data.mealType as string | undefined) ?? "SNACK",
+        imageUrl: (data.imageUrl as string | undefined) ?? null,
+        tags: (data.tags as string[] | undefined) ?? [],
+        isCustom: (data.isCustom as boolean | undefined) ?? true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
     return prisma.meal.create({
       data: {
         userId,
@@ -69,6 +131,14 @@ export class MealsService {
   }
 
   static async getById(userId: string, mealId: string) {
+    if (isPrototypeMode) {
+      const meal = getPrototypeMeals(userId).find((item) => item.id === mealId) ?? getPrototypeMeals(userId)[0];
+      if (!meal) {
+        throw toHttpError(404, "Meal not found");
+      }
+      return meal;
+    }
+
     const meal = await prisma.meal.findFirst({ where: { id: mealId, userId } });
     if (!meal) {
       throw toHttpError(404, "Meal not found");
@@ -78,6 +148,17 @@ export class MealsService {
   }
 
   static async update(userId: string, mealId: string, data: Record<string, unknown>) {
+    if (isPrototypeMode) {
+      const existing = await this.getById(userId, mealId);
+      return {
+        ...existing,
+        ...data,
+        id: mealId,
+        userId,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
     await this.getById(userId, mealId);
     return prisma.meal.update({
       where: { id: mealId },
@@ -106,11 +187,28 @@ export class MealsService {
   }
 
   static async delete(userId: string, mealId: string) {
+    if (isPrototypeMode) {
+      await this.getById(userId, mealId);
+      return;
+    }
+
     await this.getById(userId, mealId);
     await prisma.meal.delete({ where: { id: mealId } });
   }
 
   static async search(userId: string, q: string) {
+    if (isPrototypeMode) {
+      const items = getPrototypeMeals(userId);
+      const query = q.trim().toLowerCase();
+      if (!query) {
+        return items;
+      }
+
+      return items.filter(
+        (item) => item.name.toLowerCase().includes(query) || item.tags.some((tag) => tag.toLowerCase().includes(query)),
+      );
+    }
+
     return prisma.meal.findMany({
       where: {
         userId,

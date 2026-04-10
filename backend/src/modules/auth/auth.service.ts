@@ -53,6 +53,32 @@ const isPrototypeLoginEnabled = (): boolean => {
   return env.NODE_ENV !== "production";
 };
 
+type PrototypeUser = {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  age: number | null;
+  weight: number | null;
+  height: number | null;
+  activityLevel: User["activityLevel"];
+  goal: User["goal"];
+  dailyCalorieTarget: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type PrototypeRefreshToken = {
+  tokenHash: string;
+  userId: string;
+  expiresAt: Date;
+  isRevoked: boolean;
+};
+
+const prototypeUsersByEmail = new Map<string, PrototypeUser>();
+const prototypeUsersById = new Map<string, PrototypeUser>();
+const prototypeRefreshTokens = new Map<string, PrototypeRefreshToken>();
+
 const normalizeIdentifierToEmail = (identifier: string): string => {
   const trimmed = identifier.trim().toLowerCase();
   if (!trimmed) {
@@ -76,8 +102,88 @@ const displayNameFromIdentifier = (identifier: string): string => {
   return base.slice(0, 60);
 };
 
+const createPrototypeUser = (identifier: string): PrototypeUser => {
+  const email = normalizeIdentifierToEmail(identifier);
+  const now = new Date();
+
+  const user: PrototypeUser = {
+    id: crypto.randomUUID(),
+    email,
+    name: displayNameFromIdentifier(identifier),
+    avatarUrl: null,
+    age: null,
+    weight: null,
+    height: null,
+    activityLevel: "MODERATE",
+    goal: "MAINTAIN",
+    dailyCalorieTarget: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  prototypeUsersByEmail.set(email, user);
+  prototypeUsersById.set(user.id, user);
+  return user;
+};
+
+const sanitizePrototypeUser = (user: PrototypeUser): SafeUser => {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatarUrl: user.avatarUrl,
+    age: user.age,
+    weight: user.weight,
+    height: user.height,
+    activityLevel: user.activityLevel,
+    goal: user.goal,
+    dailyCalorieTarget: user.dailyCalorieTarget,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+};
+
+const revokePrototypeTokensForUser = (userId: string) => {
+  for (const token of prototypeRefreshTokens.values()) {
+    if (token.userId === userId) {
+      token.isRevoked = true;
+    }
+  }
+};
+
+const storePrototypeRefreshToken = (refreshToken: string, userId: string) => {
+  const tokenHash = hashRefreshToken(refreshToken);
+  prototypeRefreshTokens.set(tokenHash, {
+    tokenHash,
+    userId,
+    expiresAt: getExpiryDate(env.JWT_REFRESH_EXPIRES),
+    isRevoked: false,
+  });
+};
+
 export class AuthService {
   static async register(data: RegisterInput) {
+    if (isPrototypeLoginEnabled()) {
+      const normalizedEmail = normalizeIdentifierToEmail(data.email);
+      let user = prototypeUsersByEmail.get(normalizedEmail);
+
+      if (!user) {
+        user = createPrototypeUser(data.email);
+      }
+
+      const accessToken = signAccessToken({ userId: user.id, email: user.email });
+      const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
+
+      revokePrototypeTokensForUser(user.id);
+      storePrototypeRefreshToken(refreshToken, user.id);
+
+      return {
+        accessToken,
+        refreshToken,
+        user: sanitizePrototypeUser(user),
+      };
+    }
+
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
       select: { id: true },
@@ -119,6 +225,26 @@ export class AuthService {
     const prototypeLogin = isPrototypeLoginEnabled();
     const normalizedEmail = normalizeIdentifierToEmail(data.email);
 
+    if (prototypeLogin) {
+      let user = prototypeUsersByEmail.get(normalizedEmail);
+      if (!user) {
+        user = createPrototypeUser(data.email);
+      }
+
+      revokePrototypeTokensForUser(user.id);
+
+      const accessToken = signAccessToken({ userId: user.id, email: user.email });
+      const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
+
+      storePrototypeRefreshToken(refreshToken, user.id);
+
+      return {
+        accessToken,
+        refreshToken,
+        user: sanitizePrototypeUser(user),
+      };
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
@@ -140,11 +266,9 @@ export class AuthService {
       throw toHttpError(401, API_ERRORS.INVALID_CREDENTIALS);
     }
 
-    if (!prototypeLogin) {
-      const passwordMatches = await comparePassword(data.password, authenticatedUser.passwordHash);
-      if (!passwordMatches) {
-        throw toHttpError(401, API_ERRORS.INVALID_CREDENTIALS);
-      }
+    const passwordMatches = await comparePassword(data.password, authenticatedUser.passwordHash);
+    if (!passwordMatches) {
+      throw toHttpError(401, API_ERRORS.INVALID_CREDENTIALS);
     }
 
     await prisma.refreshToken.updateMany({
@@ -179,6 +303,33 @@ export class AuthService {
   static async refresh(refreshToken?: string) {
     if (!refreshToken) {
       throw toHttpError(401, API_ERRORS.SESSION_EXPIRED);
+    }
+
+    if (isPrototypeLoginEnabled()) {
+      const payload = verifyRefreshToken(refreshToken);
+      const tokenHash = hashRefreshToken(refreshToken);
+      const tokenRecord = prototypeRefreshTokens.get(tokenHash);
+
+      if (!tokenRecord || tokenRecord.isRevoked || tokenRecord.expiresAt < new Date()) {
+        throw toHttpError(401, API_ERRORS.SESSION_EXPIRED);
+      }
+
+      tokenRecord.isRevoked = true;
+
+      const user = prototypeUsersById.get(payload.userId);
+      if (!user) {
+        throw toHttpError(401, API_ERRORS.UNAUTHORIZED);
+      }
+
+      const newAccessToken = signAccessToken({ userId: user.id, email: user.email });
+      const newRefreshToken = signRefreshToken({ userId: user.id, email: user.email });
+
+      storePrototypeRefreshToken(newRefreshToken, user.id);
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      };
     }
 
     const payload = verifyRefreshToken(refreshToken);
@@ -223,6 +374,19 @@ export class AuthService {
   }
 
   static async logout(userId: string, refreshToken?: string) {
+    if (isPrototypeLoginEnabled()) {
+      if (refreshToken) {
+        const token = prototypeRefreshTokens.get(hashRefreshToken(refreshToken));
+        if (token && token.userId === userId) {
+          token.isRevoked = true;
+        }
+        return;
+      }
+
+      revokePrototypeTokensForUser(userId);
+      return;
+    }
+
     if (refreshToken) {
       await prisma.refreshToken.updateMany({
         where: {
@@ -242,6 +406,15 @@ export class AuthService {
   }
 
   static async me(userId: string) {
+    if (isPrototypeLoginEnabled()) {
+      const user = prototypeUsersById.get(userId);
+      if (!user) {
+        throw toHttpError(404, "User not found");
+      }
+
+      return sanitizePrototypeUser(user);
+    }
+
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw toHttpError(404, "User not found");
