@@ -1,5 +1,4 @@
 import { prisma } from "../../config/database";
-import { isPrototypeMode } from "../../config/runtime";
 
 const toHttpError = (statusCode: number, message: string): Error & { statusCode: number } => {
   return Object.assign(new Error(message), { statusCode });
@@ -7,29 +6,6 @@ const toHttpError = (statusCode: number, message: string): Error & { statusCode:
 
 export class UsersService {
   static async getProfile(userId: string) {
-    if (isPrototypeMode || !prisma) {
-      return {
-        id: userId,
-        email: `${userId}@prototype.local`,
-        name: "Prototype User",
-        avatarUrl: null,
-        age: null,
-        weight: null,
-        height: null,
-        activityLevel: "MODERATE",
-        goal: "MAINTAIN",
-        dailyCalorieTarget: 2000,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        userPreferences: {
-          dietaryRestrictions: [],
-          allergies: [],
-          cuisinePrefs: [],
-          dislikedFoods: [],
-        },
-      };
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { userPreferences: true },
@@ -61,23 +37,6 @@ export class UsersService {
       dailyCalorieTarget?: number | null;
     },
   ) {
-    if (isPrototypeMode || !prisma) {
-      return {
-        id: userId,
-        email: `${userId}@prototype.local`,
-        name: data.name ?? "Prototype User",
-        avatarUrl: data.avatarUrl ?? null,
-        age: data.age ?? null,
-        weight: data.weight ?? null,
-        height: data.height ?? null,
-        activityLevel: data.activityLevel ?? "MODERATE",
-        goal: data.goal ?? "MAINTAIN",
-        dailyCalorieTarget: data.dailyCalorieTarget ?? 2000,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-    }
-
     const user = await prisma.user.update({
       where: { id: userId },
       data,
@@ -96,15 +55,6 @@ export class UsersService {
       dislikedFoods: string[];
     },
   ) {
-    if (isPrototypeMode || !prisma) {
-      return {
-        id: `pref-${userId}`,
-        userId,
-        ...data,
-        updatedAt: new Date().toISOString(),
-      };
-    }
-
     return prisma.userPreference.upsert({
       where: { userId },
       create: { userId, ...data },
@@ -113,10 +63,6 @@ export class UsersService {
   }
 
   static async deleteAccount(userId: string) {
-    if (isPrototypeMode || !prisma) {
-      return;
-    }
-
     await prisma.user.delete({ where: { id: userId } });
   }
 }

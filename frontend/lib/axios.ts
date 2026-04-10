@@ -11,7 +11,7 @@ type RetryableRequestConfig = InternalAxiosRequestConfig & {
 };
 
 const baseURL =
-  process.env.NEXT_PUBLIC_API_URL?.trim() || "/api/v1";
+  process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:8080/api/v1";
 
 const api = axios.create({
   baseURL,

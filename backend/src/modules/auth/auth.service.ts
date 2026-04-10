@@ -3,7 +3,6 @@ import { User } from "@prisma/client";
 import { API_ERRORS } from "../../config/constants";
 import { prisma } from "../../config/database";
 import { env } from "../../config/env";
-import { isPrototypeMode } from "../../config/runtime";
 import {
   signAccessToken,
   signRefreshToken,
@@ -51,7 +50,7 @@ const sanitizeUser = (user: User): SafeUser => {
 };
 
 const isPrototypeLoginEnabled = (): boolean => {
-  return isPrototypeMode;
+  return env.NODE_ENV !== "production";
 };
 
 type PrototypeUser = {
@@ -185,7 +184,7 @@ export class AuthService {
       };
     }
 
-    const existingUser = await prisma?.user.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
       select: { id: true },
     });
@@ -196,7 +195,7 @@ export class AuthService {
 
     const passwordHash = await hashPassword(data.password);
 
-    const user = await prisma?.user.create({
+    const user = await prisma.user.create({
       data: {
         email: data.email,
         name: data.name,
@@ -204,14 +203,10 @@ export class AuthService {
       },
     });
 
-    if (!user) {
-      throw toHttpError(500, "Database unavailable");
-    }
-
     const accessToken = signAccessToken({ userId: user.id, email: user.email });
     const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
 
-    await prisma?.refreshToken.create({
+    await prisma.refreshToken.create({
       data: {
         token: hashRefreshToken(refreshToken),
         userId: user.id,
@@ -250,37 +245,50 @@ export class AuthService {
       };
     }
 
-    const user = await prisma?.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
 
-    if (!user) {
+    let authenticatedUser = user;
+
+    if (!authenticatedUser && prototypeLogin) {
+      const passwordHash = await hashPassword(data.password || "prototype");
+      authenticatedUser = await prisma.user.create({
+        data: {
+          email: normalizedEmail,
+          name: displayNameFromIdentifier(data.email),
+          passwordHash,
+        },
+      });
+    }
+
+    if (!authenticatedUser) {
       throw toHttpError(401, API_ERRORS.INVALID_CREDENTIALS);
     }
 
-    const passwordMatches = await comparePassword(data.password, user.passwordHash);
+    const passwordMatches = await comparePassword(data.password, authenticatedUser.passwordHash);
     if (!passwordMatches) {
       throw toHttpError(401, API_ERRORS.INVALID_CREDENTIALS);
     }
 
-    await prisma?.refreshToken.updateMany({
-      where: { userId: user.id, isRevoked: false },
+    await prisma.refreshToken.updateMany({
+      where: { userId: authenticatedUser.id, isRevoked: false },
       data: { isRevoked: true },
     });
 
     const accessToken = signAccessToken({
-      userId: user.id,
-      email: user.email,
+      userId: authenticatedUser.id,
+      email: authenticatedUser.email,
     });
     const refreshToken = signRefreshToken({
-      userId: user.id,
-      email: user.email,
+      userId: authenticatedUser.id,
+      email: authenticatedUser.email,
     });
 
-    await prisma?.refreshToken.create({
+    await prisma.refreshToken.create({
       data: {
         token: hashRefreshToken(refreshToken),
-        userId: user.id,
+        userId: authenticatedUser.id,
         expiresAt: getExpiryDate(env.JWT_REFRESH_EXPIRES),
       },
     });
@@ -288,7 +296,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: sanitizeUser(user),
+      user: sanitizeUser(authenticatedUser),
     };
   }
 
@@ -327,7 +335,7 @@ export class AuthService {
     const payload = verifyRefreshToken(refreshToken);
     const tokenHash = hashRefreshToken(refreshToken);
 
-    const tokenRecord = await prisma?.refreshToken.findFirst({
+    const tokenRecord = await prisma.refreshToken.findFirst({
       where: {
         token: tokenHash,
         userId: payload.userId,
@@ -338,12 +346,12 @@ export class AuthService {
       throw toHttpError(401, API_ERRORS.SESSION_EXPIRED);
     }
 
-    await prisma?.refreshToken.update({
+    await prisma.refreshToken.update({
       where: { id: tokenRecord.id },
       data: { isRevoked: true },
     });
 
-    const user = await prisma?.user.findUnique({ where: { id: payload.userId } });
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user) {
       throw toHttpError(401, API_ERRORS.UNAUTHORIZED);
     }
@@ -351,7 +359,7 @@ export class AuthService {
     const newAccessToken = signAccessToken({ userId: user.id, email: user.email });
     const newRefreshToken = signRefreshToken({ userId: user.id, email: user.email });
 
-    await prisma?.refreshToken.create({
+    await prisma.refreshToken.create({
       data: {
         token: hashRefreshToken(newRefreshToken),
         userId: user.id,
@@ -380,7 +388,7 @@ export class AuthService {
     }
 
     if (refreshToken) {
-      await prisma?.refreshToken.updateMany({
+      await prisma.refreshToken.updateMany({
         where: {
           userId,
           token: hashRefreshToken(refreshToken),
@@ -391,7 +399,7 @@ export class AuthService {
       return;
     }
 
-    await prisma?.refreshToken.updateMany({
+    await prisma.refreshToken.updateMany({
       where: { userId, isRevoked: false },
       data: { isRevoked: true },
     });
@@ -407,7 +415,7 @@ export class AuthService {
       return sanitizePrototypeUser(user);
     }
 
-    const user = await prisma?.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw toHttpError(404, "User not found");
     }

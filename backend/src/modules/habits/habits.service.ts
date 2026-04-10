@@ -1,9 +1,11 @@
 import { prisma } from "../../config/database";
-import { isPrototypeMode } from "../../config/runtime";
+import { env } from "../../config/env";
 
 const toHttpError = (statusCode: number, message: string): Error & { statusCode: number } => {
   return Object.assign(new Error(message), { statusCode });
 };
+
+const isPrototypeMode = env.NODE_ENV !== "production";
 
 const getPrototypeHabits = (userId: string) => {
   return [
@@ -24,7 +26,7 @@ const getPrototypeHabits = (userId: string) => {
 
 export class HabitsService {
   static async list(userId: string) {
-    if (isPrototypeMode || !prisma) {
+    if (isPrototypeMode) {
       return getPrototypeHabits(userId);
     }
 
@@ -35,7 +37,7 @@ export class HabitsService {
   }
 
   static async create(userId: string, data: Record<string, unknown>) {
-    if (isPrototypeMode || !prisma) {
+    if (isPrototypeMode) {
       return {
         id: `habit-${Date.now()}`,
         userId,
@@ -70,7 +72,7 @@ export class HabitsService {
   }
 
   static async update(userId: string, habitId: string, data: Record<string, unknown>) {
-    if (isPrototypeMode || !prisma) {
+    if (isPrototypeMode) {
       const existing = getPrototypeHabits(userId).find((habit) => habit.id === habitId);
       if (!existing) {
         throw toHttpError(404, "Habit not found");
@@ -109,7 +111,7 @@ export class HabitsService {
   }
 
   static async delete(userId: string, habitId: string) {
-    if (isPrototypeMode || !prisma) {
+    if (isPrototypeMode) {
       const existing = getPrototypeHabits(userId).find((habit) => habit.id === habitId);
       if (!existing) {
         throw toHttpError(404, "Habit not found");

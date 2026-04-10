@@ -1,9 +1,11 @@
 import { prisma } from "../../config/database";
-import { isPrototypeMode } from "../../config/runtime";
+import { env } from "../../config/env";
 
 const toHttpError = (statusCode: number, message: string): Error & { statusCode: number } => {
   return Object.assign(new Error(message), { statusCode });
 };
+
+const isPrototypeMode = env.NODE_ENV !== "production";
 
 const getPrototypeRecommendations = (userId: string) => {
   return [
@@ -24,7 +26,7 @@ const getPrototypeRecommendations = (userId: string) => {
 
 export class RecommendationsService {
   static async list(userId: string) {
-    if (isPrototypeMode || !prisma) {
+    if (isPrototypeMode) {
       return getPrototypeRecommendations(userId);
     }
 
@@ -35,7 +37,7 @@ export class RecommendationsService {
   }
 
   static async generate(userId: string, data: Record<string, unknown>) {
-    if (isPrototypeMode || !prisma) {
+    if (isPrototypeMode) {
       return {
         id: `rec-${Date.now()}`,
         userId,
@@ -63,7 +65,7 @@ export class RecommendationsService {
   }
 
   static async markRead(userId: string, id: string) {
-    if (isPrototypeMode || !prisma) {
+    if (isPrototypeMode) {
       const item = getPrototypeRecommendations(userId).find((rec) => rec.id === id);
       if (!item) {
         throw toHttpError(404, "Recommendation not found");
@@ -87,7 +89,7 @@ export class RecommendationsService {
   }
 
   static async toggleSave(userId: string, id: string) {
-    if (isPrototypeMode || !prisma) {
+    if (isPrototypeMode) {
       const item = getPrototypeRecommendations(userId).find((rec) => rec.id === id);
       if (!item) {
         throw toHttpError(404, "Recommendation not found");
