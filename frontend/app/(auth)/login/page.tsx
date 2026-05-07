@@ -1,34 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
-import api from "@/lib/axios";
+import { loginRequest } from "@/features/auth/api/auth.api";
 
 const loginSchema = z.object({
-  email: z.string().min(1, "ID is required"),
+  email: z.string().email("Please provide a valid email"),
   password: z.string().min(1, "Password is required"),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [hasNetworkError, setHasNetworkError] = useState(false);
   const [lastPayload, setLastPayload] = useState<LoginFormValues | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setAuth = useAuthStore((state) => state.setAuth);
 
   const {
     register,
-    watch,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
@@ -36,48 +36,24 @@ export default function LoginPage() {
     mode: "onChange",
   });
 
-  const passwordValue = watch("password", "");
-
-  const passwordStrength = useMemo(() => {
-    let score = 0;
-    if (passwordValue.length >= 8) score += 1;
-    if (/[A-Z]/.test(passwordValue)) score += 1;
-    if (/\d/.test(passwordValue)) score += 1;
-    if (/[^A-Za-z0-9]/.test(passwordValue)) score += 1;
-    return score;
-  }, [passwordValue]);
-
-  const strengthWidthClass = ["w-0", "w-1/4", "w-2/4", "w-3/4", "w-full"][passwordStrength];
-
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setHasNetworkError(false);
       setLastPayload(data);
-      const response = await api.post("/auth/login", data);
-
-      const { accessToken, user } = response.data.data;
+      const { accessToken, user } = await loginRequest(data);
 
       setAuth(accessToken, user);
       toast.success("Welcome back");
-      router.push("/dashboard");
+
+      const redirect = searchParams.get("redirect") || "/dashboard";
+      router.push(redirect);
     } catch (error) {
-      const err = error as {
-        response?: {
-          status?: number;
-          data?: { error?: { message?: string } };
-        };
-      };
-
-      const status = err.response?.status;
-      const message = err.response?.data?.error?.message;
-
-      if (!status) {
+      if (error instanceof Error && error.message === "Network timeout. Please retry.") {
         setHasNetworkError(true);
         toast.error("Network timeout. Please retry.");
         return;
       }
-
-      toast.error(message || "Invalid credentials");
+      toast.error(error instanceof Error ? error.message : "Invalid credentials");
     }
   };
 
@@ -119,13 +95,14 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground" htmlFor="email">
-                ID / Email
+              <label className="text-sm font-medium text-foreground" htmlFor="login-email">
+                Email
               </label>
               <input
-                id="email"
-                type="text"
-                placeholder="Enter any ID"
+                id="login-email"
+                type="email"
+                placeholder="you@example.com"
+                autoComplete="email"
                 className={`w-full rounded-lg border bg-background/50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
                   errors.email ? "border-red-500" : "border-input"
                 }`}
@@ -135,14 +112,15 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground" htmlFor="password">
+              <label className="text-sm font-medium text-foreground" htmlFor="login-password">
                 Password
               </label>
               <div className="relative">
                 <input
-                  id="password"
+                  id="login-password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   className={`w-full rounded-lg border bg-background/50 px-4 py-3 pr-11 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
                     errors.password ? "border-red-500" : "border-input"
                   }`}
@@ -152,15 +130,11 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3.5 text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className={`h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all ${strengthWidthClass}`} />
-              </div>
-
               {errors.password ? <p className="text-sm text-red-500">{errors.password.message}</p> : null}
             </div>
 
@@ -199,5 +173,13 @@ export default function LoginPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }

@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { ModeIndicator } from "@/components/shared/ModeIndicator";
 import "./globals.css";
 
 const outfit = Outfit({ subsets: ["latin"], display: "swap" });
@@ -30,6 +31,7 @@ export default function RootLayout({
           <QueryProvider>
             <AuthProvider>
               {children}
+              <ModeIndicator />
               <Toaster position="top-right" richColors closeButton />
             </AuthProvider>
           </QueryProvider>

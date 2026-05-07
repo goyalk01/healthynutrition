@@ -1,121 +1,86 @@
-import { prisma } from "../../config/database";
+import { API_ERRORS } from "../../config/constants";
+import { Prisma } from "@prisma/client";
+import { NotFoundError } from "../../utils/errors";
+import { buildPaginationMeta } from "../../utils/pagination";
+import { MealsRepository } from "./meals.repository";
+import { MealCreateInput, MealListQuery, MealUpdateInput } from "./meals.schema";
 
-const toHttpError = (statusCode: number, message: string): Error & { statusCode: number } => {
-  return Object.assign(new Error(message), { statusCode });
-};
-
+/**
+ * Meals service — pure business logic, delegates DB to MealsRepository.
+ */
 export class MealsService {
-  static async list(
-    userId: string,
-    query: { page: number; limit: number; mealType?: string; tag?: string },
-  ) {
+  static async list(userId: string, query: MealListQuery) {
     const skip = (query.page - 1) * query.limit;
-    const where: Record<string, unknown> = { userId };
+    const where: Prisma.MealWhereInput = { userId };
 
-    if (query.mealType) {
-      where.mealType = query.mealType;
-    }
-    if (query.tag) {
-      // SQLite: tags are stored as JSON text, use contains for filtering
-      where.tags = { contains: query.tag };
-    }
+    if (query.mealType) where.mealType = query.mealType;
+    if (query.tag) where.tags = { has: query.tag };
 
-    const [items, total] = await prisma.$transaction([
-      prisma.meal.findMany({ where, skip, take: query.limit, orderBy: { createdAt: "desc" } }),
-      prisma.meal.count({ where }),
-    ]);
+    const [items, total] = await MealsRepository.findMany(where, skip, query.limit);
 
     return {
-      items: items.map((item: any) => ({
-        ...item,
-        tags: typeof item.tags === "string" ? JSON.parse(item.tags) : item.tags,
-      })),
-      pagination: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: Math.ceil(total / query.limit),
-      },
+      items,
+      pagination: buildPaginationMeta(query.page, query.limit, total),
     };
-  }
-
-  static async create(userId: string, data: Record<string, unknown>) {
-    return prisma.meal.create({
-      data: {
-        userId,
-        name: data.name as string,
-        description: (data.description as string | undefined) ?? null,
-        calories: data.calories as number,
-        protein: data.protein as number,
-        carbs: data.carbs as number,
-        fat: data.fat as number,
-        fiber: (data.fiber as number | undefined) ?? null,
-        sugar: (data.sugar as number | undefined) ?? null,
-        mealType: data.mealType as string,
-        imageUrl: (data.imageUrl as string | undefined) ?? null,
-        tags: JSON.stringify((data.tags as string[]) ?? []),
-        isCustom: (data.isCustom as boolean | undefined) ?? true,
-      },
-    });
   }
 
   static async getById(userId: string, mealId: string) {
-    const meal = await prisma.meal.findFirst({ where: { id: mealId, userId } });
-    if (!meal) {
-      throw toHttpError(404, "Meal not found");
-    }
-
-    return {
-      ...meal,
-      tags: typeof meal.tags === "string" ? JSON.parse(meal.tags) : meal.tags,
-    };
+    const meal = await MealsRepository.findById(mealId, userId);
+    if (!meal) throw new NotFoundError("Meal", API_ERRORS.MEAL_NOT_FOUND);
+    return meal;
   }
 
-  static async update(userId: string, mealId: string, data: Record<string, unknown>) {
+  static async create(userId: string, data: MealCreateInput) {
+    return MealsRepository.create({
+      user: { connect: { id: userId } },
+      name: data.name,
+      description: data.description ?? null,
+      calories: data.calories,
+      protein: data.protein,
+      carbs: data.carbs,
+      fat: data.fat,
+      fiber: data.fiber ?? null,
+      sugar: data.sugar ?? null,
+      mealType: data.mealType,
+      imageUrl: data.imageUrl ?? null,
+      tags: data.tags ?? [],
+      isCustom: data.isCustom ?? true,
+    });
+  }
+
+  static async update(userId: string, mealId: string, data: MealUpdateInput) {
     await this.getById(userId, mealId);
 
-    const updateData: Record<string, unknown> = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.calories !== undefined) updateData.calories = data.calories;
-    if (data.protein !== undefined) updateData.protein = data.protein;
-    if (data.carbs !== undefined) updateData.carbs = data.carbs;
-    if (data.fat !== undefined) updateData.fat = data.fat;
-    if (data.fiber !== undefined) updateData.fiber = data.fiber;
-    if (data.sugar !== undefined) updateData.sugar = data.sugar;
-    if (data.mealType !== undefined) updateData.mealType = data.mealType;
-    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
-    if (data.tags !== undefined) updateData.tags = JSON.stringify(data.tags);
-    if (data.isCustom !== undefined) updateData.isCustom = data.isCustom;
+    const updateData: Prisma.MealUpdateInput = {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.calories !== undefined ? { calories: data.calories } : {}),
+      ...(data.protein !== undefined ? { protein: data.protein } : {}),
+      ...(data.carbs !== undefined ? { carbs: data.carbs } : {}),
+      ...(data.fat !== undefined ? { fat: data.fat } : {}),
+      ...(data.fiber !== undefined ? { fiber: data.fiber } : {}),
+      ...(data.sugar !== undefined ? { sugar: data.sugar } : {}),
+      ...(data.mealType !== undefined ? { mealType: data.mealType } : {}),
+      ...(data.imageUrl !== undefined ? { imageUrl: data.imageUrl } : {}),
+      ...(data.tags !== undefined ? { tags: data.tags } : {}),
+      ...(data.isCustom !== undefined ? { isCustom: data.isCustom } : {}),
+    };
 
-    return prisma.meal.update({
-      where: { id: mealId },
-      data: updateData,
-    });
+    return MealsRepository.update(mealId, updateData);
   }
 
   static async delete(userId: string, mealId: string) {
     await this.getById(userId, mealId);
-    await prisma.meal.delete({ where: { id: mealId } });
+    await MealsRepository.delete(mealId);
   }
 
   static async search(userId: string, q: string) {
-    // SQLite: use contains for case-insensitive search (SQLite is case-insensitive by default for ASCII)
-    const results = await prisma.meal.findMany({
-      where: {
-        userId,
-        OR: [
-          { name: { contains: q } },
-          { tags: { contains: q } },
-        ],
-      },
-      take: 25,
-      orderBy: { createdAt: "desc" },
-    });
+    const query = q.trim();
+    if (!query) {
+      return [];
+    }
 
-    return results.map((item: any) => ({
-      ...item,
-      tags: typeof item.tags === "string" ? JSON.parse(item.tags) : item.tags,
-    }));
+    const results = await MealsRepository.search(userId, query);
+    return results;
   }
 }

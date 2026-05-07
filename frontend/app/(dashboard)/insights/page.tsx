@@ -1,26 +1,38 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { SkeletonCard } from "@/components/shared/SkeletonCard";
-import { useRecommendations } from "@/hooks/useRecommendations";
+import { Brain } from "lucide-react";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { PageGridSkeleton } from "@/components/shared/PageGridSkeleton";
+import { useRecommendations } from "@/features/recommendations/hooks/useRecommendations";
 
 export default function InsightsPage() {
   const recommendationsQuery = useRecommendations();
 
-  if (recommendationsQuery.isLoading) {
+  if (recommendationsQuery.isError) {
     return (
-      <div className="grid gap-4 md:grid-cols-2">
-        <SkeletonCard />
-        <SkeletonCard />
-      </div>
+      <ErrorState
+        title="Insights unavailable"
+        description="We couldn't load recommendations right now."
+        onRetry={() => {
+          void recommendationsQuery.refetch();
+        }}
+      />
     );
+  }
+
+  if (recommendationsQuery.isLoading) {
+    return <PageGridSkeleton columns="two" count={2} />;
   }
 
   if (!recommendationsQuery.data?.length) {
     return (
-      <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
-        No insights generated yet. Trigger your first recommendation.
-      </div>
+      <EmptyState
+        icon={<Brain size={20} />}
+        title="No insights generated yet"
+        description="Generate recommendations to see explainable nutrition insights."
+      />
     );
   }
 

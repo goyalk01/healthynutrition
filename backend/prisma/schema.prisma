@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -44,6 +44,8 @@ model RefreshToken {
   isRevoked Boolean  @default(false)
 
   @@map("refresh_tokens")
+  @@index([userId, isRevoked, expiresAt])
+  @@index([userId, token])
 }
 
 model Meal {
@@ -60,7 +62,7 @@ model Meal {
   sugar        Float?
   mealType     String   // BREAKFAST | LUNCH | DINNER | SNACK | PRE_WORKOUT | POST_WORKOUT
   imageUrl     String?
-  tags         String   @default("[]") // JSON array stored as text
+  tags         String[] @default([])
   isCustom     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -68,6 +70,8 @@ model Meal {
   logs         MealLog[]
 
   @@index([userId, createdAt])
+  @@index([userId, mealType, createdAt])
+  @@index([userId, name])
   @@map("meals")
 }
 
@@ -83,6 +87,8 @@ model MealLog {
   energyLevel Int?   // 1-10
 
   @@index([userId, loggedAt])
+  @@index([userId, mealId, loggedAt])
+  @@index([mealId, loggedAt])
   @@map("meal_logs")
 }
 
@@ -102,6 +108,8 @@ model Habit {
   logs        HabitLog[]
 
   @@map("habits")
+  @@index([userId, isActive, createdAt])
+  @@index([userId, category])
 }
 
 model HabitLog {
@@ -115,6 +123,8 @@ model HabitLog {
   note      String?
 
   @@index([userId, loggedAt])
+  @@index([userId, habitId, loggedAt])
+  @@index([habitId, loggedAt])
   @@map("habit_logs")
 }
 
@@ -132,6 +142,8 @@ model Recommendation {
   createdAt   DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([userId, isRead, createdAt])
+  @@index([userId, type, createdAt])
   @@map("recommendations")
 }
 
@@ -139,10 +151,10 @@ model UserPreference {
   id                  String   @id @default(cuid())
   userId              String   @unique
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dietaryRestrictions String   @default("[]") // JSON array as text
-  allergies           String   @default("[]") // JSON array as text
-  cuisinePrefs        String   @default("[]") // JSON array as text
-  dislikedFoods       String   @default("[]") // JSON array as text
+  dietaryRestrictions String[] @default([])
+  allergies           String[] @default([])
+  cuisinePrefs        String[] @default([])
+  dislikedFoods       String[] @default([])
   updatedAt           DateTime @updatedAt
 
   @@map("user_preferences")

@@ -1,15 +1,7 @@
-export type ApiSuccess<T> = {
-  success: true;
-  data: T;
-  message?: string;
-};
-
-export type ApiError = {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-  };
-};
-
-export type ApiResponse<T> = ApiSuccess<T> | ApiError;
+export type {
+  ApiError,
+  ApiResponse,
+  ApiSuccess,
+  PaginatedResult,
+  PaginationMeta,
+} from "@/shared/types/api";

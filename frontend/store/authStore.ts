@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { AuthUser } from "@/types/auth.types";
+import { AuthUser } from "@/features/auth/types/auth.types";
 
 type AuthState = {
   accessToken: string | null;

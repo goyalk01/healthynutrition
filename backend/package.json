@@ -3,17 +3,26 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/src/app.js",
+    "start": "node dist/src/server.js",
+    "lint": "node scripts/architecture-check.mjs",
+    "architecture:check": "node scripts/architecture-check.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "ts-node-dev prisma/seed.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
     "@fastify/cors": "^8.5.0",
     "@fastify/helmet": "^10.1.1",
     "@fastify/rate-limit": "^8.1.1",
+    "@fastify/swagger": "^9.7.0",
+    "@fastify/swagger-ui": "^5.2.6",
     "@prisma/client": "^5.22.0",
     "bcrypt": "^5.1.1",
     "dotenv": "^16.4.5",
@@ -28,8 +37,13 @@
     "@types/bcrypt": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.7.5",
+    "@vitest/coverage-v8": "^4.1.5",
     "prisma": "^5.22.0",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "vitest": "^4.1.5"
+  },
+  "prisma": {
+    "seed": "ts-node-dev prisma/seed.ts"
   }
 }

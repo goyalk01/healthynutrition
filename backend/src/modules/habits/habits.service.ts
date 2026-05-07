@@ -1,69 +1,50 @@
-import { prisma } from "../../config/database";
+import { API_ERRORS } from "../../config/constants";
+import { Prisma } from "@prisma/client";
+import { NotFoundError } from "../../utils/errors";
+import { HabitsRepository } from "./habits.repository";
+import { HabitCreateInput, HabitUpdateInput } from "./habits.schema";
 
-const toHttpError = (statusCode: number, message: string): Error & { statusCode: number } => {
-  return Object.assign(new Error(message), { statusCode });
-};
-
+/**
+ * Habits service — pure business logic, delegates DB to HabitsRepository.
+ */
 export class HabitsService {
   static async list(userId: string) {
-    return prisma.habit.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
+    return HabitsRepository.findByUserId(userId);
+  }
+
+  static async create(userId: string, data: HabitCreateInput) {
+    return HabitsRepository.create({
+      user: { connect: { id: userId } },
+      name: data.name,
+      description: data.description ?? null,
+      category: data.category,
+      frequency: data.frequency,
+      targetCount: data.targetCount ?? 1,
+      unit: data.unit ?? null,
+      isActive: data.isActive ?? true,
     });
   }
 
-  static async create(userId: string, data: Record<string, unknown>) {
-    return prisma.habit.create({
-      data: {
-        userId,
-        name: data.name as string,
-        description: (data.description as string | undefined) ?? null,
-        category: data.category as
-          | "HYDRATION"
-          | "SLEEP"
-          | "EXERCISE"
-          | "NUTRITION"
-          | "MINDFULNESS",
-        frequency: data.frequency as "DAILY" | "WEEKLY",
-        targetCount: (data.targetCount as number | undefined) ?? 1,
-        unit: (data.unit as string | undefined) ?? null,
-        isActive: (data.isActive as boolean | undefined) ?? true,
-      },
-    });
-  }
+  static async update(userId: string, habitId: string, data: HabitUpdateInput) {
+    const habit = await HabitsRepository.findById(habitId, userId);
+    if (!habit) throw new NotFoundError("Habit", API_ERRORS.HABIT_NOT_FOUND);
 
-  static async update(userId: string, habitId: string, data: Record<string, unknown>) {
-    const habit = await prisma.habit.findFirst({ where: { id: habitId, userId } });
-    if (!habit) {
-      throw toHttpError(404, "Habit not found");
-    }
+    const updateData: Prisma.HabitUpdateInput = {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.category !== undefined ? { category: data.category } : {}),
+      ...(data.frequency !== undefined ? { frequency: data.frequency } : {}),
+      ...(data.targetCount !== undefined ? { targetCount: data.targetCount } : {}),
+      ...(data.unit !== undefined ? { unit: data.unit } : {}),
+      ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+    };
 
-    return prisma.habit.update({
-      where: { id: habitId },
-      data: {
-        name: data.name as string | undefined,
-        description: data.description as string | undefined,
-        category: data.category as
-          | "HYDRATION"
-          | "SLEEP"
-          | "EXERCISE"
-          | "NUTRITION"
-          | "MINDFULNESS"
-          | undefined,
-        frequency: data.frequency as "DAILY" | "WEEKLY" | undefined,
-        targetCount: data.targetCount as number | undefined,
-        unit: data.unit as string | undefined,
-        isActive: data.isActive as boolean | undefined,
-      },
-    });
+    return HabitsRepository.update(habitId, updateData);
   }
 
   static async delete(userId: string, habitId: string) {
-    const habit = await prisma.habit.findFirst({ where: { id: habitId, userId } });
-    if (!habit) {
-      throw toHttpError(404, "Habit not found");
-    }
-
-    await prisma.habit.delete({ where: { id: habitId } });
+    const habit = await HabitsRepository.findById(habitId, userId);
+    if (!habit) throw new NotFoundError("Habit", API_ERRORS.HABIT_NOT_FOUND);
+    await HabitsRepository.delete(habitId);
   }
 }

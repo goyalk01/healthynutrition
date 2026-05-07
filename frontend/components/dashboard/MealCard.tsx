@@ -1,6 +1,6 @@
 "use client";
 
-import { Meal } from "@/types/meal.types";
+import { Meal } from "@/features/meals/types/meal.types";
 import { motion } from "framer-motion";
 import { Utensils, Flame, Droplet, Wheat } from "lucide-react";
 

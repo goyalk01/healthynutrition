@@ -1,11 +1,22 @@
 import Redis from "ioredis";
 import { env } from "./env";
 import { logger } from "../utils/logger";
+import { featureFlags } from "./featureFlags";
 
 const globalForRedis = globalThis as unknown as { redis?: Redis };
 
 const createRedisClient = () => {
-  const client = new Redis(env.REDIS_URL, {
+  if (!featureFlags.requireRedis && !env.REDIS_URL) {
+    // Return a dummy redis client for development if no URL is provided
+    return {
+      status: "ready",
+      connect: async () => {},
+      on: () => {},
+      quit: async () => {},
+    } as unknown as Redis;
+  }
+
+  const client = new Redis(env.REDIS_URL || "redis://localhost:6379", {
     enableReadyCheck: true,
     lazyConnect: true,
     enableOfflineQueue: false,

@@ -10,11 +10,11 @@ export const registerSchema = z.object({
       passwordPattern,
       "Password must be at least 8 characters and include 1 uppercase letter and 1 number",
     ),
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").max(60),
 });
 
 export const loginSchema = z.object({
-  email: z.string().min(1, "ID is required"),
+  email: z.string().email("Please provide a valid email"),
   password: z.string().min(1, "Password is required"),
 });
 

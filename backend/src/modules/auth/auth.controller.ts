@@ -1,53 +1,54 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { COOKIE_KEYS } from "../../config/constants";
+import { COOKIE } from "../../config/constants";
 import { env } from "../../config/env";
-import { createSuccessResponse } from "../../utils/response";
-import { AuthService } from "./auth.service";
+import { sendSuccess } from "../../utils/response";
+import { authProvider } from "../../providers/auth";
+import { LoginInput, LogoutInput, RefreshInput, RegisterInput } from "./auth.schema";
 
 const cookieOptions = {
   httpOnly: true,
   secure: env.NODE_ENV === "production",
   sameSite: "strict" as const,
   path: "/",
-  maxAge: 7 * 24 * 60 * 60,
+  maxAge: COOKIE.maxAge,
 };
 
 export class AuthController {
   static async register(request: FastifyRequest, reply: FastifyReply) {
-    const result = await AuthService.register(request.body as never);
+    const result = await authProvider.register(request.body as RegisterInput);
 
-    reply.setCookie(COOKIE_KEYS.refreshToken, result.refreshToken, cookieOptions);
-    return reply.code(201).send(createSuccessResponse(result));
+    reply.setCookie(COOKIE.refreshToken, result.refreshToken, cookieOptions);
+    return sendSuccess(reply, request, result, undefined, 201);
   }
 
   static async login(request: FastifyRequest, reply: FastifyReply) {
-    const result = await AuthService.login(request.body as never);
+    const result = await authProvider.login(request.body as LoginInput);
 
-    reply.setCookie(COOKIE_KEYS.refreshToken, result.refreshToken, cookieOptions);
-    return reply.send(createSuccessResponse(result));
+    reply.setCookie(COOKIE.refreshToken, result.refreshToken, cookieOptions);
+    return sendSuccess(reply, request, result);
   }
 
   static async refresh(request: FastifyRequest, reply: FastifyReply) {
-    const body = request.body as { refreshToken?: string };
-    const token = body.refreshToken || request.cookies[COOKIE_KEYS.refreshToken];
-    const result = await AuthService.refresh(token);
+    const body = request.body as RefreshInput;
+    const token = body.refreshToken || request.cookies[COOKIE.refreshToken];
+    const result = await authProvider.refresh(token);
 
-    reply.setCookie(COOKIE_KEYS.refreshToken, result.refreshToken, cookieOptions);
-    return reply.send(createSuccessResponse(result));
+    reply.setCookie(COOKIE.refreshToken, result.refreshToken, cookieOptions);
+    return sendSuccess(reply, request, result);
   }
 
   static async logout(request: FastifyRequest, reply: FastifyReply) {
-    const body = request.body as { refreshToken?: string };
-    const token = body.refreshToken || request.cookies[COOKIE_KEYS.refreshToken];
+    const body = request.body as LogoutInput;
+    const token = body.refreshToken || request.cookies[COOKIE.refreshToken];
 
-    await AuthService.logout(request.user!.userId, token);
-    reply.clearCookie(COOKIE_KEYS.refreshToken, { path: "/" });
+    await authProvider.logout(request.user!.userId, token);
+    reply.clearCookie(COOKIE.refreshToken, { path: "/" });
 
-    return reply.send(createSuccessResponse({ loggedOut: true }));
+    return sendSuccess(reply, request, { loggedOut: true });
   }
 
   static async me(request: FastifyRequest, reply: FastifyReply) {
-    const user = await AuthService.me(request.user!.userId);
-    return reply.send(createSuccessResponse(user));
+    const user = await authProvider.me(request.user!.userId);
+    return sendSuccess(reply, request, user);
   }
 }

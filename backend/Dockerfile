@@ -33,4 +33,4 @@ USER node
 
 EXPOSE 8080
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/src/app.js"]
+CMD ["node", "dist/src/server.js"]

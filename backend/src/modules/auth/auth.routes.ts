@@ -1,7 +1,6 @@
 import { FastifyPluginAsync } from "fastify";
-import { ZodError } from "zod";
+import { COOKIE, RATE_LIMIT } from "../../config/constants";
 import { authenticate } from "../../middleware/authenticate";
-import { createErrorResponse } from "../../utils/response";
 import { AuthController } from "./auth.controller";
 import {
   loginSchema,
@@ -10,45 +9,24 @@ import {
   registerSchema,
 } from "./auth.schema";
 
-const handleRouteError = (error: unknown, reply: { code: (statusCode: number) => { send: (body: unknown) => unknown } }) => {
-  if (error instanceof ZodError) {
-    return reply
-      .code(400)
-      .send(
-        createErrorResponse(
-          "VALIDATION_ERROR",
-          error.issues.map((issue) => issue.message).join(", "),
-        ),
-      );
-  }
-
-  const err = error as Error & { statusCode?: number };
-  const statusCode = err.statusCode ?? 500;
-  const code = statusCode === 401 ? "UNAUTHORIZED" : statusCode === 409 ? "CONFLICT" : "INTERNAL_SERVER_ERROR";
-
-  return reply
-    .code(statusCode)
-    .send(createErrorResponse(code, err.message || "Internal server error"));
-};
-
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post(
     "/register",
     {
       config: {
         rateLimit: {
-          max: 20,
-          timeWindow: "1 minute",
+          max: RATE_LIMIT.authMax,
+          timeWindow: RATE_LIMIT.authWindow,
         },
+      },
+      schema: {
+        tags: ["Auth"],
+        summary: "Register a new user",
       },
     },
     async (request, reply) => {
-      try {
-        request.body = registerSchema.parse(request.body);
-        return await AuthController.register(request, reply);
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+      request.body = registerSchema.parse(request.body);
+      return AuthController.register(request, reply);
     },
   );
 
@@ -57,46 +35,52 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     {
       config: {
         rateLimit: {
-          max: 20,
-          timeWindow: "1 minute",
+          max: RATE_LIMIT.authMax,
+          timeWindow: RATE_LIMIT.authWindow,
         },
+      },
+      schema: {
+        tags: ["Auth"],
+        summary: "Login with email and password",
       },
     },
     async (request, reply) => {
-      try {
-        request.body = loginSchema.parse(request.body);
-        return await AuthController.login(request, reply);
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+      request.body = loginSchema.parse(request.body);
+      return AuthController.login(request, reply);
     },
   );
 
-  fastify.post("/refresh", async (request, reply) => {
-    try {
+  fastify.post(
+    "/refresh",
+    {
+      schema: {
+        tags: ["Auth"],
+        summary: "Rotate refresh/access tokens",
+      },
+    },
+    async (request, reply) => {
       const rawBody = (request.body ?? {}) as { refreshToken?: string };
-      const cookieToken = request.cookies.refreshToken;
+      const cookieToken = request.cookies[COOKIE.refreshToken];
       const token = rawBody.refreshToken || cookieToken;
 
       request.body = refreshSchema.parse({ refreshToken: token });
-      return await AuthController.refresh(request, reply);
-    } catch (error) {
-      return handleRouteError(error, reply);
-    }
-  });
+      return AuthController.refresh(request, reply);
+    },
+  );
 
   fastify.post(
     "/logout",
     {
       preHandler: authenticate,
+      schema: {
+        tags: ["Auth"],
+        summary: "Logout current user",
+        security: [{ bearerAuth: [] }],
+      },
     },
     async (request, reply) => {
-      try {
-        request.body = logoutSchema.parse(request.body ?? {});
-        return await AuthController.logout(request, reply);
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+      request.body = logoutSchema.parse(request.body ?? {});
+      return AuthController.logout(request, reply);
     },
   );
 
@@ -104,13 +88,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     "/me",
     {
       preHandler: authenticate,
+      schema: {
+        tags: ["Auth"],
+        summary: "Get current authenticated user",
+        security: [{ bearerAuth: [] }],
+      },
     },
     async (request, reply) => {
-      try {
-        return await AuthController.me(request, reply);
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+      return AuthController.me(request, reply);
     },
   );
 };

@@ -1,35 +1,20 @@
-import { prisma } from "../../config/database";
+import { NotFoundError } from "../../utils/errors";
+import { API_ERRORS } from "../../config/constants";
+import { UsersRepository } from "./users.repository";
 
-const toHttpError = (statusCode: number, message: string): Error & { statusCode: number } => {
-  return Object.assign(new Error(message), { statusCode });
-};
-
+/**
+ * Users service — delegates DB to UsersRepository.
+ */
 export class UsersService {
   static async getProfile(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { userPreferences: true },
-    });
+    const user = await UsersRepository.findById(userId);
+    if (!user) throw new NotFoundError("User", API_ERRORS.USER_NOT_FOUND);
 
-    if (!user) {
-      throw toHttpError(404, "User not found");
-    }
+    const { passwordHash: _, ...safe } = user;
 
-    const { passwordHash: _passwordHash, ...safeUser } = user;
+      return safe;
 
-    // Parse JSON string arrays in preferences
-    if (safeUser.userPreferences) {
-      const prefs = safeUser.userPreferences;
-      safeUser.userPreferences = {
-        ...prefs,
-        dietaryRestrictions: typeof prefs.dietaryRestrictions === "string" ? JSON.parse(prefs.dietaryRestrictions) : prefs.dietaryRestrictions,
-        allergies: typeof prefs.allergies === "string" ? JSON.parse(prefs.allergies) : prefs.allergies,
-        cuisinePrefs: typeof prefs.cuisinePrefs === "string" ? JSON.parse(prefs.cuisinePrefs) : prefs.cuisinePrefs,
-        dislikedFoods: typeof prefs.dislikedFoods === "string" ? JSON.parse(prefs.dislikedFoods) : prefs.dislikedFoods,
-      };
-    }
-
-    return safeUser;
+    return safe;
   }
 
   static async updateProfile(
@@ -45,13 +30,9 @@ export class UsersService {
       dailyCalorieTarget?: number | null;
     },
   ) {
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data,
-    });
-
-    const { passwordHash: _passwordHash, ...safeUser } = user;
-    return safeUser;
+    const user = await UsersRepository.update(userId, data);
+    const { passwordHash: _, ...safe } = user;
+    return safe;
   }
 
   static async upsertPreferences(
@@ -63,22 +44,10 @@ export class UsersService {
       dislikedFoods: string[];
     },
   ) {
-    // Serialize arrays to JSON strings for SQLite
-    const serialized = {
-      dietaryRestrictions: JSON.stringify(data.dietaryRestrictions),
-      allergies: JSON.stringify(data.allergies),
-      cuisinePrefs: JSON.stringify(data.cuisinePrefs),
-      dislikedFoods: JSON.stringify(data.dislikedFoods),
-    };
-
-    return prisma.userPreference.upsert({
-      where: { userId },
-      create: { userId, ...serialized },
-      update: serialized,
-    });
+    return UsersRepository.upsertPreferences(userId, data);
   }
 
   static async deleteAccount(userId: string) {
-    await prisma.user.delete({ where: { id: userId } });
+    await UsersRepository.delete(userId);
   }
 }

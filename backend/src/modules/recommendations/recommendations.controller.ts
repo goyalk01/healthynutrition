@@ -1,20 +1,27 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { createSuccessResponse } from "../../utils/response";
+import { sendSuccess } from "../../utils/response";
 import { RecommendationsService } from "./recommendations.service";
+import { RecommendationGenerateInput } from "./recommendations.schema";
 
 export class RecommendationsController {
   static async list(request: FastifyRequest, reply: FastifyReply) {
     const items = await RecommendationsService.list(request.user!.userId);
-    return reply.send(createSuccessResponse(items));
+    return sendSuccess(reply, request, items);
   }
 
   static async generate(request: FastifyRequest, reply: FastifyReply) {
     const recommendation = await RecommendationsService.generate(
       request.user!.userId,
-      request.body as Record<string, unknown>,
+      request.body as RecommendationGenerateInput,
     );
 
-    return reply.code(201).send(createSuccessResponse(recommendation, "Recommendation generated"));
+    return sendSuccess(
+      reply,
+      request,
+      recommendation,
+      "Recommendation generated",
+      201,
+    );
   }
 
   static async markRead(request: FastifyRequest, reply: FastifyReply) {
@@ -23,7 +30,7 @@ export class RecommendationsController {
       (request.params as { id: string }).id,
     );
 
-    return reply.send(createSuccessResponse(item, "Recommendation marked as read"));
+    return sendSuccess(reply, request, item, "Recommendation marked as read");
   }
 
   static async toggleSave(request: FastifyRequest, reply: FastifyReply) {
@@ -32,6 +39,6 @@ export class RecommendationsController {
       (request.params as { id: string }).id,
     );
 
-    return reply.send(createSuccessResponse(item, "Recommendation updated"));
+    return sendSuccess(reply, request, item, "Recommendation updated");
   }
 }

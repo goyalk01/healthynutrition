@@ -1,48 +1,48 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Activity, Flame, Droplets, Target } from "lucide-react";
+import { Activity, Flame, Utensils, Target } from "lucide-react";
 
-type StatItem = {
-  label: string;
-  value: string;
-  change: string;
-  icon: React.ReactNode;
-  trend: "up" | "down" | "neutral";
+type StatsGridProps = {
+  calories: number;
+  protein: number;
+  mealCount: number;
+  habitCount: number;
+  isLoading?: boolean;
 };
-
-const ITEMS: StatItem[] = [
-  { label: "Calories", value: "1,840", change: "+6%", icon: <Flame size={20} />, trend: "up" },
-  { label: "Protein", value: "128g", change: "+9%", icon: <Target size={20} />, trend: "up" },
-  { label: "Water", value: "2.4L", change: "+11%", icon: <Droplets size={20} />, trend: "up" },
-  { label: "Habit Streak", value: "12 days", change: "+1", icon: <Activity size={20} />, trend: "neutral" },
-];
 
 const containerVariants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1
-    }
-  }
+      staggerChildren: 0.1,
+    },
+  },
 };
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
 };
 
-export function StatsGrid() {
+export function StatsGrid({ calories, protein, mealCount, habitCount, isLoading }: StatsGridProps) {
+  const items = [
+    { label: "Calories", value: isLoading ? "—" : calories.toLocaleString(), icon: <Flame size={20} /> },
+    { label: "Protein", value: isLoading ? "—" : `${protein}g`, icon: <Target size={20} /> },
+    { label: "Meals Logged", value: isLoading ? "—" : String(mealCount), icon: <Utensils size={20} /> },
+    { label: "Active Habits", value: isLoading ? "—" : String(habitCount), icon: <Activity size={20} /> },
+  ];
+
   return (
-    <motion.section 
+    <motion.section
       variants={containerVariants}
       initial="hidden"
       animate="show"
       className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
     >
-      {ITEMS.map((item) => (
-        <motion.article 
+      {items.map((item) => (
+        <motion.article
           key={item.label}
           variants={itemVariants}
           whileHover={{ y: -4, scale: 1.01 }}
@@ -56,12 +56,6 @@ export function StatsGrid() {
           </div>
           <div className="mt-4 flex items-baseline space-x-2">
             <p className="text-3xl font-bold tracking-tight">{item.value}</p>
-          </div>
-          <div className="mt-2 text-xs">
-            <span className="font-semibold text-emerald-500 dark:text-emerald-400">
-              {item.change}
-            </span>
-            <span className="text-muted-foreground ml-1">vs last week</span>
           </div>
         </motion.article>
       ))}

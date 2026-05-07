@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
+import { API_ERRORS } from "../config/constants";
 import { env } from "../config/env";
+import { UnauthorizedError } from "./errors";
 
 type BaseTokenPayload = {
   userId: string;
@@ -26,9 +28,13 @@ const verifyToken = <T extends AccessTokenPayload | RefreshTokenPayload>(
   token: string,
   secret: string,
 ): T => {
-  return jwt.verify(token, secret, {
-    algorithms: [algorithm],
-  }) as T;
+  try {
+    return jwt.verify(token, secret, {
+      algorithms: [algorithm],
+    }) as T;
+  } catch {
+    throw new UnauthorizedError(API_ERRORS.UNAUTHORIZED);
+  }
 };
 
 export const signAccessToken = (payload: BaseTokenPayload): string => {
@@ -50,7 +56,7 @@ export const signRefreshToken = (payload: BaseTokenPayload): string => {
 export const verifyAccessToken = (token: string): AccessTokenPayload => {
   const payload = verifyToken<AccessTokenPayload>(token, env.JWT_ACCESS_SECRET);
   if (payload.tokenType !== "access") {
-    throw new Error("Invalid access token type");
+    throw new UnauthorizedError(API_ERRORS.UNAUTHORIZED);
   }
 
   return payload;
@@ -59,7 +65,7 @@ export const verifyAccessToken = (token: string): AccessTokenPayload => {
 export const verifyRefreshToken = (token: string): RefreshTokenPayload => {
   const payload = verifyToken<RefreshTokenPayload>(token, env.JWT_REFRESH_SECRET);
   if (payload.tokenType !== "refresh") {
-    throw new Error("Invalid refresh token type");
+    throw new UnauthorizedError(API_ERRORS.UNAUTHORIZED);
   }
 
   return payload;
