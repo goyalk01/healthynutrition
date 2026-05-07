@@ -82,3 +82,8 @@ pids
 .dockerignore
 !backend/.dockerignore
 !frontend/.dockerignore
+
+
+
+prompt.txt
+**/prompt.txt

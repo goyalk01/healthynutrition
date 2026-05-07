@@ -11,20 +11,24 @@ export class MealsRepository {
     skip: number,
     take: number,
   ) {
+    const finalWhere = { ...where, deletedAt: null };
     const safeTake = Math.min(take, 100);
     return prisma.$transaction([
       prisma.meal.findMany({
-        where,
+        where: finalWhere,
+
         skip,
         take: safeTake,
         orderBy: { createdAt: "desc" },
       }),
-      prisma.meal.count({ where }),
+      prisma.meal.count({ where: finalWhere }),
+
     ]);
   }
 
   static findById(id: string, userId: string) {
-    return prisma.meal.findFirst({ where: { id, userId } });
+    return prisma.meal.findFirst({ where: { id, userId, deletedAt: null } });
+
   }
 
   static create(data: Prisma.MealCreateInput) {
@@ -36,13 +40,16 @@ export class MealsRepository {
   }
 
   static delete(id: string) {
-    return prisma.meal.delete({ where: { id } });
+    return prisma.meal.update({ where: { id }, data: { deletedAt: new Date() } });
+
   }
 
   static search(userId: string, query: string) {
     return prisma.meal.findMany({
       where: {
         userId,
+        deletedAt: null,
+
         OR: [
           { name: { contains: query, mode: "insensitive" } },
           { tags: { has: query } },
@@ -59,7 +66,8 @@ export class MealsRepository {
     from?: Date,
     to?: Date,
   ) {
-    const where: Prisma.MealLogWhereInput = { userId };
+    const where: Prisma.MealLogWhereInput = { userId, deletedAt: null, meal: { deletedAt: null } };
+
     if (from || to) {
       where.loggedAt = {
         ...(from ? { gte: from } : {}),

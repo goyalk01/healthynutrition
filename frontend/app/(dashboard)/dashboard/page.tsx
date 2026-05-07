@@ -12,19 +12,24 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { PageGridSkeleton } from "@/components/shared/PageGridSkeleton";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
 import { UI_CONSTANTS } from "@/config/constants";
+import { normalizeArray } from "@/shared/api/normalize";
+import { Habit } from "@/features/habits/types/habit.types";
+import { Meal } from "@/features/meals/types/meal.types";
 import { useMeals } from "@/features/meals/hooks/useMeals";
 import { useHabits } from "@/features/habits/hooks/useHabits";
 
 export default function DashboardPage() {
   const mealsQuery = useMeals();
   const habitsQuery = useHabits();
+  const meals = normalizeArray<Meal>(mealsQuery.data);
+  const habits = normalizeArray<Habit>(habitsQuery.data);
 
   const macros = useMemo(() => {
-    if (!mealsQuery.data?.length) {
+    if (!meals.length) {
       return { calories: 0, protein: 0, carbs: 0, fat: 0 };
     }
 
-    return mealsQuery.data.reduce(
+    return meals.reduce(
       (acc, meal) => ({
         calories: acc.calories + meal.calories,
         protein: acc.protein + meal.protein,
@@ -33,9 +38,9 @@ export default function DashboardPage() {
       }),
       { calories: 0, protein: 0, carbs: 0, fat: 0 },
     );
-  }, [mealsQuery.data]);
+  }, [meals]);
 
-  const activeHabits = habitsQuery.data?.filter((h) => h.isActive) ?? [];
+  const activeHabits = habits.filter((h) => h.isActive);
 
   if (mealsQuery.isError || habitsQuery.isError) {
     return (
@@ -54,7 +59,7 @@ export default function DashboardPage() {
       <StatsGrid
         calories={Math.round(macros.calories)}
         protein={Math.round(macros.protein)}
-        mealCount={mealsQuery.data?.length ?? 0}
+        mealCount={meals.length}
         habitCount={activeHabits.length}
         isLoading={mealsQuery.isLoading || habitsQuery.isLoading}
       />
@@ -100,13 +105,13 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold">Recent Meals</h2>
         {mealsQuery.isLoading ? (
           <PageGridSkeleton columns="three" count={3} />
-        ) : mealsQuery.data?.length ? (
+        ) : meals.length ? (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
           >
-            {mealsQuery.data.slice(0, UI_CONSTANTS.recentMealPreviewLimit).map((meal) => (
+            {meals.slice(0, UI_CONSTANTS.recentMealPreviewLimit).map((meal) => (
               <MealCard key={meal.id} meal={meal} />
             ))}
           </motion.div>

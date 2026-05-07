@@ -1,3 +1,12 @@
+"use client";
+
+/**
+ * Browser-only API client.
+ *
+ * CRITICAL: This file MUST remain client-only ("use client").
+ * It uses Zustand for auth state which would leak between requests
+ * if executed during SSR. For server-side API calls, use client.server.ts.
+ */
 import axios, {
   AxiosError,
   AxiosHeaders,
@@ -7,6 +16,8 @@ import { toast } from "sonner";
 import { APP_CONFIG } from "@/config/app";
 import { useAuthStore } from "@/store/authStore";
 import { featureFlags } from "@/config/featureFlags";
+import { createDemoAuthSession } from "@/features/auth/mockSession";
+import { useDevRuntimeStore } from "@/store/devRuntimeStore";
 import { handleMockApiResponse } from "./mockApi";
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
@@ -26,6 +37,21 @@ const refreshClient = axios.create({
 });
 
 let refreshPromise: Promise<string | null> | null = null;
+let mockFallbackLogged = false;
+
+const markMockFallback = (
+  reason: string,
+  config: InternalAxiosRequestConfig,
+) => {
+  useDevRuntimeStore.getState().markBackendUnreachable(reason);
+  if (!mockFallbackLogged) {
+    console.warn(
+      "[NutriSense][MockFallback] Backend unreachable; switching to local mock responses.",
+      { method: config.method, url: config.url, reason },
+    );
+    mockFallbackLogged = true;
+  }
+};
 
 const withAuthHeader = (
   config: InternalAxiosRequestConfig,
@@ -56,6 +82,12 @@ const refreshAccessToken = async (): Promise<string | null> => {
         useAuthStore.getState().setAccessToken(accessToken);
         return accessToken;
       } catch {
+        if (featureFlags.useMockApi && featureFlags.autoDemoLogin) {
+          const session = createDemoAuthSession();
+          useAuthStore.getState().setAuth(session.accessToken, session.user);
+          return session.accessToken;
+        }
+
         useAuthStore.getState().markSessionExpired();
         if (typeof window !== "undefined") {
           toast.error("Session expired. Please log in again.");
@@ -81,24 +113,34 @@ apiClient.interceptors.request.use((config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (featureFlags.useMockApi) {
+      useDevRuntimeStore.getState().markBackendReachable();
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
     if (!error.response) {
+      if (featureFlags.useMockApi) {
+        const fallbackConfig =
+          (error.config as InternalAxiosRequestConfig | undefined) ??
+          ({
+            method: "get",
+            url: "",
+            headers: new AxiosHeaders(),
+          } as InternalAxiosRequestConfig);
+
+        markMockFallback(error.code || "ERR_NETWORK", fallbackConfig);
+        return Promise.resolve(handleMockApiResponse(fallbackConfig));
+      }
+
       if (error.code === "ECONNABORTED") {
-        if (featureFlags.useMockApi) {
-          toast.info("Using mock API fallback (Timeout)");
-          return Promise.resolve(handleMockApiResponse(error.config as InternalAxiosRequestConfig));
-        }
         return Promise.reject(new Error("Request timed out. Please retry."));
       }
 
       if (error.code === "ERR_NETWORK") {
-        if (featureFlags.useMockApi) {
-          toast.info("Using mock API fallback (Network Error)");
-          return Promise.resolve(handleMockApiResponse(error.config as InternalAxiosRequestConfig));
-        }
         return Promise.reject(
           new Error(
             `API is unreachable at ${APP_CONFIG.apiBaseUrl}. Start backend and verify NEXT_PUBLIC_API_URL.`,
@@ -106,10 +148,6 @@ apiClient.interceptors.response.use(
         );
       }
 
-      if (featureFlags.useMockApi) {
-         toast.info("Using mock API fallback");
-         return Promise.resolve(handleMockApiResponse(error.config as InternalAxiosRequestConfig));
-      }
       return Promise.reject(new Error("Network request failed. Please retry."));
     }
 

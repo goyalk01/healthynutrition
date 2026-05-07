@@ -16,6 +16,7 @@ vi.mock("../modules/recommendations/recommendations.repository");
 vi.mock("../config/env", () => ({
   env: {
     NODE_ENV: "test",
+    APP_MODE: "development",
     APP_NAME: "test",
     HOST: "0.0.0.0",
     PORT: 8080,
@@ -30,6 +31,7 @@ vi.mock("../config/env", () => ({
     BCRYPT_ROUNDS: 4,
     RATE_LIMIT_MAX: 100,
     RATE_LIMIT_WINDOW: 60000,
+    MAX_BODY_SIZE: 1048576,
   },
 }));
 

@@ -18,6 +18,7 @@ vi.mock("../utils/jwt");
 vi.mock("../config/env", () => ({
   env: {
     NODE_ENV: "test",
+    APP_MODE: "development",
     JWT_ACCESS_SECRET: "a".repeat(64),
     JWT_REFRESH_SECRET: "b".repeat(64),
     JWT_ACCESS_EXPIRES: "15m",
@@ -32,6 +33,7 @@ vi.mock("../config/env", () => ({
     CORS_ORIGIN: "http://localhost:3000",
     RATE_LIMIT_MAX: 100,
     RATE_LIMIT_WINDOW: 60000,
+    MAX_BODY_SIZE: 1048576,
   },
 }));
 

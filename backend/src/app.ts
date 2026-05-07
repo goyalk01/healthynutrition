@@ -17,6 +17,7 @@ import mealsRoutes from "./modules/meals/meals.routes";
 import recommendationsRoutes from "./modules/recommendations/recommendations.routes";
 import usersRoutes from "./modules/users/users.routes";
 import { createSuccessResponse } from "./utils/response";
+import { recommendationsQueue } from "./modules/recommendations/recommendations.queue";
 
 export const buildApp = async (): Promise<FastifyInstance> => {
   const app = Fastify({
@@ -24,6 +25,8 @@ export const buildApp = async (): Promise<FastifyInstance> => {
       level: env.NODE_ENV === "development" ? "debug" : "info",
     },
     trustProxy: true,
+    /** Production safety: cap request body size to prevent OOM attacks. */
+    bodyLimit: env.MAX_BODY_SIZE,
   });
 
   await app.register(helmet, {
@@ -35,6 +38,11 @@ export const buildApp = async (): Promise<FastifyInstance> => {
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:", "https:"],
             connectSrc: ["'self'"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
           },
         }
       : false,
@@ -77,13 +85,14 @@ export const buildApp = async (): Promise<FastifyInstance> => {
     {
       schema: {
         tags: ["Health"],
-        summary: "Readiness check",
+        summary: "Readiness check — verifies database, Redis, and queue health",
       },
     },
     async (_request, reply) => {
       const checks = {
         database: false,
         redis: redis.status === "ready",
+        queue: false,
       };
 
       try {
@@ -93,7 +102,22 @@ export const buildApp = async (): Promise<FastifyInstance> => {
         checks.database = false;
       }
 
-      if (!checks.database) {
+      // Queue health — check if the queue is connected and operational
+      if (recommendationsQueue) {
+        try {
+          await recommendationsQueue.getJobCounts();
+          checks.queue = true;
+        } catch {
+          checks.queue = false;
+        }
+      } else {
+        // No queue in dev mode — not a failure
+        checks.queue = true;
+      }
+
+      const allHealthy = checks.database && checks.redis && checks.queue;
+
+      if (!allHealthy) {
         return reply.code(503).send(createSuccessResponse({
           status: "degraded",
           checks,
@@ -119,7 +143,9 @@ export const buildApp = async (): Promise<FastifyInstance> => {
     {
       service: env.APP_NAME,
       environment: env.NODE_ENV,
+      appMode: env.APP_MODE,
       port: env.PORT,
+      bodyLimit: `${Math.round(env.MAX_BODY_SIZE / 1024)}KB`,
       docs: `/docs`,
       healthCheck: `/health`,
       readinessCheck: `/ready`,

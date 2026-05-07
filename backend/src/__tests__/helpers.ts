@@ -22,6 +22,7 @@ export const createMockUser = (overrides: Record<string, unknown> = {}) => ({
   dailyCalorieTarget: 2000,
   createdAt: new Date("2025-01-01"),
   updatedAt: new Date("2025-01-01"),
+  deletedAt: null,
   ...overrides,
 });
 
@@ -45,6 +46,7 @@ export const createMockMeal = (overrides: Record<string, unknown> = {}) => ({
   isCustom: true,
   createdAt: new Date("2025-01-01"),
   updatedAt: new Date("2025-01-01"),
+  deletedAt: null,
   ...overrides,
 });
 
@@ -62,6 +64,7 @@ export const createMockHabit = (overrides: Record<string, unknown> = {}) => ({
   unit: "glasses",
   isActive: true,
   createdAt: new Date("2025-01-01"),
+  deletedAt: null,
   ...overrides,
 });
 

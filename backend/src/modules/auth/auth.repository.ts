@@ -10,11 +10,11 @@ import { prisma } from "../../config/database";
  */
 export class AuthRepository {
   static findUserByEmail(email: string) {
-    return prisma.user.findUnique({ where: { email } });
+    return prisma.user.findFirst({ where: { email, deletedAt: null } });
   }
 
   static findUserById(id: string) {
-    return prisma.user.findUnique({ where: { id } });
+    return prisma.user.findFirst({ where: { id, deletedAt: null } });
   }
 
   static createUser(data: { email: string; name: string; passwordHash: string }) {

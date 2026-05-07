@@ -198,7 +198,7 @@ const main = async () => {
   for (const file of files) {
     const relative = normalize(path.relative(ROOT, file));
     const allowed =
-      relative === "shared/api/client.ts" || relative === "lib/axios.ts" || relative === "shared/api/mockApi.ts" || relative === "shared/api/response.ts";
+      relative === "shared/api/client.browser.ts" || relative === "shared/api/client.server.ts" || relative === "lib/axios.ts" || relative === "shared/api/mockApi.ts" || relative === "shared/api/response.ts";
     const text = await readText(file);
     if (!allowed && /from\s+["']axios["']/.test(text)) {
       forbiddenAxiosImports.push(relative);
@@ -211,7 +211,7 @@ const main = async () => {
   const hardcodedApiUrls = [];
   for (const file of files) {
     const relative = normalize(path.relative(ROOT, file));
-    if (relative === "config/app.ts" || relative === "shared/api/client.ts") {
+    if (relative === "config/app.ts" || relative === "shared/api/client.browser.ts" || relative === "shared/api/client.server.ts") {
       continue;
     }
     const text = await readText(file);

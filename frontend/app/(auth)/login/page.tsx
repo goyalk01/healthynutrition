@@ -48,9 +48,12 @@ function LoginContent() {
       const redirect = searchParams.get("redirect") || "/dashboard";
       router.push(redirect);
     } catch (error) {
-      if (error instanceof Error && error.message === "Network timeout. Please retry.") {
+      if (
+        error instanceof Error &&
+        /(timed out|API is unreachable|Network request failed)/i.test(error.message)
+      ) {
         setHasNetworkError(true);
-        toast.error("Network timeout. Please retry.");
+        toast.error(error.message);
         return;
       }
       toast.error(error instanceof Error ? error.message : "Invalid credentials");

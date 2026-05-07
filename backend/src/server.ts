@@ -2,6 +2,10 @@ import { prisma } from "./config/database";
 import { env } from "./config/env";
 import { connectRedis, redis } from "./config/redis";
 import { buildApp } from "./app";
+import { startRecommendationWorker, closeRecommendationWorker } from "./modules/recommendations/recommendations.worker";
+import { assertProductionSafety } from "./config/featureFlags";
+import { logger } from "./utils/logger";
+
 
 let appInstance: Awaited<ReturnType<typeof buildApp>> | null = null;
 let shuttingDown = false;
@@ -13,7 +17,7 @@ const shutdown = async (signal: string, exitCode = 0) => {
   shuttingDown = true;
 
   const timeout = setTimeout(() => {
-    console.error("Forced shutdown — timeout exceeded");
+    logger.error("Forced shutdown — timeout exceeded");
     process.exit(1);
   }, env.SHUTDOWN_TIMEOUT_MS);
 
@@ -23,9 +27,16 @@ const shutdown = async (signal: string, exitCode = 0) => {
       await appInstance.close();
       appInstance.log.info("HTTP server closed");
     }
+
+    // Close workers before disconnecting Redis (workers depend on Redis)
+    await closeRecommendationWorker();
+
     await prisma.$disconnect();
+    logger.info("PostgreSQL disconnected");
+
     if (redis.status === "ready" || redis.status === "connect") {
       await redis.quit();
+      logger.info("Redis disconnected");
     }
   } finally {
     clearTimeout(timeout);
@@ -35,6 +46,12 @@ const shutdown = async (signal: string, exitCode = 0) => {
 
 void (async () => {
   const startTime = performance.now();
+
+  // ── Production safety gate ──────────────────────────────
+  // This MUST run before anything else. If production invariants
+  // are violated (mock auth enabled, missing infra, etc.), the
+  // server will refuse to start rather than serve traffic unsafely.
+  assertProductionSafety();
 
   const app = await buildApp();
   appInstance = app;
@@ -51,6 +68,9 @@ void (async () => {
       redisReady ? "✓ Redis connected" : "⚠ Redis unavailable (using fallback)",
     );
 
+    app.log.info("Starting workers...");
+    startRecommendationWorker();
+
     // ── Start listening ────────────────────────────────────
     await app.listen({
       host: env.HOST,
@@ -64,6 +84,7 @@ void (async () => {
         startupMs,
         port: env.PORT,
         env: env.NODE_ENV,
+        appMode: env.APP_MODE,
         docs: `http://localhost:${env.PORT}/docs`,
       },
       `🚀 NutriSense API ready in ${startupMs}ms`,
@@ -84,12 +105,11 @@ process.on("SIGINT", () => {
 });
 
 process.on("uncaughtException", (error) => {
-  appInstance?.log.error({ err: error }, "Uncaught exception");
+  logger.error({ err: error }, "Uncaught exception");
   void shutdown("uncaughtException", 1);
 });
 
 process.on("unhandledRejection", (reason) => {
-  appInstance?.log.error({ reason }, "Unhandled rejection");
+  logger.error({ reason }, "Unhandled rejection");
   void shutdown("unhandledRejection", 1);
 });
-

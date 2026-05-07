@@ -6,10 +6,13 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { SkeletonTable } from "@/components/shared/SkeletonTable";
 import { UI_CONSTANTS } from "@/config/constants";
+import { normalizeArray } from "@/shared/api/normalize";
 import { useHabits } from "@/features/habits/hooks/useHabits";
+import { Habit } from "@/features/habits/types/habit.types";
 
 export default function HabitsPage() {
   const habitsQuery = useHabits();
+  const habits = normalizeArray<Habit>(habitsQuery.data);
 
   if (habitsQuery.isError) {
     return (
@@ -27,7 +30,7 @@ export default function HabitsPage() {
     return <SkeletonTable rows={5} />;
   }
 
-  if (!habitsQuery.data?.length) {
+  if (!habits.length) {
     return (
       <EmptyState
         icon={<Activity size={20} />}
@@ -39,7 +42,7 @@ export default function HabitsPage() {
 
   return (
     <div className="space-y-3">
-      {habitsQuery.data.map((habit) => (
+      {habits.map((habit) => (
         <HabitTracker
           key={habit.id}
           name={habit.name}

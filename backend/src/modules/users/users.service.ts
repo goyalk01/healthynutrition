@@ -11,9 +11,6 @@ export class UsersService {
     if (!user) throw new NotFoundError("User", API_ERRORS.USER_NOT_FOUND);
 
     const { passwordHash: _, ...safe } = user;
-
-      return safe;
-
     return safe;
   }
 

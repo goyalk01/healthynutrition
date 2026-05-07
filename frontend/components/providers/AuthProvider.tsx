@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { featureFlags } from "@/config/featureFlags";
 import { getCurrentUser, refreshSession } from "@/features/auth/api/auth.api";
+import { createDemoAuthSession } from "@/features/auth/mockSession";
 import { useAuthStore } from "@/store/authStore";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -11,6 +13,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+
+    if (featureFlags.autoDemoLogin) {
+      const session = createDemoAuthSession();
+      setAuth(session.accessToken, session.user);
+      setHydrated(true);
+      return () => {
+        isMounted = false;
+      };
+    }
 
     const bootstrapSession = async () => {
       try {
@@ -24,7 +35,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuth(refreshed.accessToken, user);
       } catch {
         if (isMounted) {
-          clearAuth();
+          if (featureFlags.useMockApi) {
+            const session = createDemoAuthSession();
+            setAuth(session.accessToken, session.user);
+          } else {
+            clearAuth();
+          }
         }
       } finally {
         if (isMounted) {

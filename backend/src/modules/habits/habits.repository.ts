@@ -7,13 +7,15 @@ import { Prisma } from "@prisma/client";
 export class HabitsRepository {
   static findByUserId(userId: string) {
     return prisma.habit.findMany({
-      where: { userId },
+      where: { userId, deletedAt: null },
+
       orderBy: { createdAt: "desc" },
     });
   }
 
   static findById(id: string, userId: string) {
-    return prisma.habit.findFirst({ where: { id, userId } });
+    return prisma.habit.findFirst({ where: { id, userId, deletedAt: null } });
+
   }
 
   static create(data: Prisma.HabitCreateInput) {
@@ -25,20 +27,24 @@ export class HabitsRepository {
   }
 
   static delete(id: string) {
-    return prisma.habit.delete({ where: { id } });
+    return prisma.habit.update({ where: { id }, data: { deletedAt: new Date() } });
+
   }
 
   static countActiveHabits(userId: string) {
-    return prisma.habit.count({ where: { userId, isActive: true } });
+    return prisma.habit.count({ where: { userId, isActive: true, deletedAt: null } });
+
   }
 
   /** Get habit completion rates for scoring. */
   static async getCompletionRates(userId: string, since: Date) {
     const habits = await prisma.habit.findMany({
-      where: { userId, isActive: true },
+      where: { userId, isActive: true, deletedAt: null },
+
       include: {
         logs: {
-          where: { loggedAt: { gte: since } },
+          where: { loggedAt: { gte: since }, deletedAt: null },
+
           select: { count: true, loggedAt: true },
         },
       },

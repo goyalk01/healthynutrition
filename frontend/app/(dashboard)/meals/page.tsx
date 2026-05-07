@@ -6,10 +6,13 @@ import { MealCard } from "@/components/dashboard/MealCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { PageGridSkeleton } from "@/components/shared/PageGridSkeleton";
+import { normalizeArray } from "@/shared/api/normalize";
 import { useMeals } from "@/features/meals/hooks/useMeals";
+import { Meal } from "@/features/meals/types/meal.types";
 
 export default function MealsPage() {
   const mealsQuery = useMeals();
+  const meals = normalizeArray<Meal>(mealsQuery.data);
 
   if (mealsQuery.isError) {
     return (
@@ -27,7 +30,7 @@ export default function MealsPage() {
     return <PageGridSkeleton columns="three" count={3} />;
   }
 
-  if (!mealsQuery.data?.length) {
+  if (!meals.length) {
     return (
       <EmptyState
         icon={<Utensils size={20} />}
@@ -39,7 +42,7 @@ export default function MealsPage() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {mealsQuery.data.map((meal) => (
+      {meals.map((meal) => (
         <MealCard key={meal.id} meal={meal} />
       ))}
     </motion.div>

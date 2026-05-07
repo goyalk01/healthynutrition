@@ -5,10 +5,13 @@ import { Brain } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { PageGridSkeleton } from "@/components/shared/PageGridSkeleton";
+import { normalizeArray } from "@/shared/api/normalize";
 import { useRecommendations } from "@/features/recommendations/hooks/useRecommendations";
+import { Recommendation } from "@/features/recommendations/types/recommendation.types";
 
 export default function InsightsPage() {
   const recommendationsQuery = useRecommendations();
+  const recommendations = normalizeArray<Recommendation>(recommendationsQuery.data);
 
   if (recommendationsQuery.isError) {
     return (
@@ -26,7 +29,7 @@ export default function InsightsPage() {
     return <PageGridSkeleton columns="two" count={2} />;
   }
 
-  if (!recommendationsQuery.data?.length) {
+  if (!recommendations.length) {
     return (
       <EmptyState
         icon={<Brain size={20} />}
@@ -38,7 +41,7 @@ export default function InsightsPage() {
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {recommendationsQuery.data.map((item) => (
+      {recommendations.map((item) => (
         <motion.article
           key={item.id}
           initial={{ opacity: 0, y: 8 }}

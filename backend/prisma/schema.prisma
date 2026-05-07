@@ -21,6 +21,8 @@ model User {
   dailyCalorieTarget Int?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
 
   // Relations
   meals         Meal[]
@@ -31,6 +33,8 @@ model User {
   recommendations Recommendation[]
   userPreferences UserPreference?
 
+  @@index([email, deletedAt])
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -66,6 +70,8 @@ model Meal {
   isCustom     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
 
   logs         MealLog[]
 
@@ -85,6 +91,8 @@ model MealLog {
   quantity  Float    @default(1.0)  // multiplier
   mood      String?  // GREAT | GOOD | NEUTRAL | BAD | TERRIBLE
   energyLevel Int?   // 1-10
+  deletedAt DateTime?
+
 
   @@index([userId, loggedAt])
   @@index([userId, mealId, loggedAt])
@@ -104,6 +112,8 @@ model Habit {
   unit        String?  // e.g., "glasses", "minutes"
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+
 
   logs        HabitLog[]
 
@@ -121,6 +131,8 @@ model HabitLog {
   loggedAt  DateTime @default(now())
   count     Int      @default(1)
   note      String?
+  deletedAt DateTime?
+
 
   @@index([userId, loggedAt])
   @@index([userId, habitId, loggedAt])
@@ -135,11 +147,14 @@ model Recommendation {
   type        String   // MEAL | HABIT | INSIGHT | ALERT
   title       String
   description String
-  data        String   @default("{}") // JSON stored as text
+  data        Json     @default("{}") // JSON stored as JSONB
+
   score       Float    // confidence 0-1
   isRead      Boolean  @default(false)
   isSaved     Boolean  @default(false)
   createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+
 
   @@index([userId, createdAt])
   @@index([userId, isRead, createdAt])

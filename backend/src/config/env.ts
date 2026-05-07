@@ -31,6 +31,8 @@ const envSchema = z.object({
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW: z.coerce.number().int().positive().default(60000),
+  /** Maximum request body size in bytes (default: 1 MB). */
+  MAX_BODY_SIZE: z.coerce.number().int().positive().default(1_048_576),
 }).superRefine((data, ctx) => {
   if (data.APP_MODE === "production" && !data.DATABASE_URL) {
     ctx.addIssue({
@@ -45,6 +47,16 @@ const envSchema = z.object({
       message: "REDIS_URL is required in production mode",
       path: ["REDIS_URL"],
     });
+  }
+  // Production safety: JWT secrets must not be defaults
+  if (data.APP_MODE === "production") {
+    if (data.JWT_ACCESS_SECRET === data.JWT_REFRESH_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different in production",
+        path: ["JWT_ACCESS_SECRET"],
+      });
+    }
   }
 });
 

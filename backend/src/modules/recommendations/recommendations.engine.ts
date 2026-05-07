@@ -232,7 +232,7 @@ export class RecommendationEngine {
           title: r.title,
           description: r.description,
           score: r.score,
-          data: JSON.stringify(r.data),
+          data: r.data as any,
         })),
       );
     }

@@ -1,4 +1,5 @@
-import apiClient from "@/shared/api/client";
+import apiClient from "@/shared/api/client.browser";
+import { normalizeObject } from "@/shared/api/normalize";
 import { unwrapApiResponse } from "@/shared/api/response";
 import { ApiResponse } from "@/shared/types/api";
 import {
@@ -26,14 +27,24 @@ export const registerRequest = async (payload: RegisterPayload) => {
 
 export const getCurrentUser = async () => {
   const response = await apiClient.get<ApiResponse<AuthUser>>("/auth/me");
-  return unwrapApiResponse(response);
+  const payload = normalizeObject<AuthUser>(unwrapApiResponse(response));
+  if (!payload) {
+    throw new Error("Invalid auth user response");
+  }
+  return payload;
 };
 
 export const refreshSession = async () => {
   const response = await apiClient.post<
     ApiResponse<{ accessToken: string; refreshToken?: string }>
   >("/auth/refresh", {});
-  return unwrapApiResponse(response);
+  const payload = normalizeObject<{ accessToken: string; refreshToken?: string }>(
+    unwrapApiResponse(response),
+  );
+  if (!payload?.accessToken) {
+    throw new Error("Invalid auth refresh response");
+  }
+  return payload;
 };
 
 export const logoutRequest = async () => {

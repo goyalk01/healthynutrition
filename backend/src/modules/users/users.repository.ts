@@ -2,12 +2,16 @@ import { prisma } from "../../config/database";
 import { Prisma } from "@prisma/client";
 
 /**
- * Users repository.
+ * Users repository — sole owner of user-related DB queries.
+ *
+ * Soft delete: users are marked with deletedAt instead of being destroyed.
+ * This preserves historical nutrition data, analytics integrity, and
+ * referential consistency with meals, habits, logs, and recommendations.
  */
 export class UsersRepository {
   static findById(id: string) {
-    return prisma.user.findUnique({
-      where: { id },
+    return prisma.user.findFirst({
+      where: { id, deletedAt: null },
       include: { userPreferences: true },
     });
   }
@@ -32,7 +36,30 @@ export class UsersRepository {
     });
   }
 
-  static delete(id: string) {
-    return prisma.user.delete({ where: { id } });
+  /**
+   * Soft delete — preserves user data for analytics and referential integrity.
+   * Also revokes all refresh tokens to prevent access after deletion.
+   */
+  static async delete(id: string) {
+    return prisma.$transaction([
+      prisma.refreshToken.updateMany({
+        where: { userId: id },
+        data: { isRevoked: true },
+      }),
+      prisma.user.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      }),
+    ]);
+  }
+
+  /**
+   * Restore a soft-deleted user account.
+   */
+  static restore(id: string) {
+    return prisma.user.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
   }
 }
